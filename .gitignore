@@ -1,0 +1,124 @@
+```gitignore
+# =========================
+# Common
+# =========================
+
+.DS_Store
+Thumbs.db
+
+*.log
+logs/
+
+.env
+.env.*
+!.env.example
+
+
+# =========================
+# Backend - Spring Boot / Maven
+# =========================
+
+backend/HELP.md
+
+backend/target/
+!backend/src/main/**/target/
+!backend/src/test/**/target/
+
+backend/.mvn/wrapper/maven-wrapper.jar
+
+# Maven local wrapper generated files
+backend/.mvn/wrapper/maven-wrapper.properties
+
+
+# =========================
+# Frontend - Vue / Vite / Node
+# =========================
+
+frontend/web/node_modules/
+frontend/web/dist/
+frontend/web/.vite/
+
+frontend/extension/node_modules/
+frontend/extension/dist/
+frontend/extension/.vite/
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+
+# =========================
+# AI Server - Python / FastAPI
+# =========================
+
+ai-server/__pycache__/
+ai-server/**/__pycache__/
+
+ai-server/.venv/
+ai-server/venv/
+ai-server/env/
+
+ai-server/.pytest_cache/
+ai-server/.mypy_cache/
+ai-server/.ruff_cache/
+
+ai-server/*.pyc
+ai-server/*.pyo
+ai-server/*.pyd
+
+
+# =========================
+# STS / Eclipse
+# =========================
+
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+
+
+# =========================
+# IntelliJ IDEA
+# =========================
+
+.idea/
+*.iws
+*.iml
+*.ipr
+
+
+# =========================
+# NetBeans
+# =========================
+
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+build/
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+
+# =========================
+# VS Code
+# =========================
+
+.vscode/
+
+
+# =========================
+# Docker / Local Infra
+# =========================
+
+infra/mysql/data/
+infra/redis/data/
+
+*.pid
+```
