@@ -14,6 +14,7 @@ SET FOREIGN_KEY_CHECKS = 0;
 DROP TABLE IF EXISTS affiliate_clicks;
 DROP TABLE IF EXISTS ai_analysis_logs;
 DROP TABLE IF EXISTS user_events;
+DROP TABLE IF EXISTS wishlists;
 DROP TABLE IF EXISTS recommendations;
 DROP TABLE IF EXISTS detections;
 DROP TABLE IF EXISTS posts;
@@ -21,7 +22,6 @@ DROP TABLE IF EXISTS products;
 DROP TABLE IF EXISTS user_preferences;
 DROP TABLE IF EXISTS categories;
 DROP TABLE IF EXISTS users;
-DROP TABLE IF EXISTS wishlists;
 
 SET FOREIGN_KEY_CHECKS = 1;
 
@@ -40,6 +40,9 @@ CREATE TABLE users (
 
     nickname VARCHAR(50) NOT NULL,
     profile_image_url TEXT NULL,
+
+    phone VARCHAR(20) NULL,
+    birth_date DATE NULL,
 
     role VARCHAR(20) NOT NULL DEFAULT 'USER',
     status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
@@ -120,6 +123,7 @@ CREATE TABLE products (
     price INT NULL,
     image_url TEXT NULL,
     affiliate_url TEXT NULL,
+    description TEXT NULL,
     source VARCHAR(50) NULL,
     review_count INT NOT NULL DEFAULT 0,
     rating DECIMAL(2,1) NULL,
@@ -136,7 +140,10 @@ CREATE TABLE products (
     INDEX idx_products_brand (brand),
     INDEX idx_products_source (source),
     INDEX idx_products_visible_yn (visible_yn),
-    INDEX idx_products_price (price)
+    INDEX idx_products_price (price),
+    INDEX idx_products_rating (rating),
+    INDEX idx_products_review_count (review_count),
+    INDEX idx_products_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
@@ -240,7 +247,36 @@ CREATE TABLE recommendations (
 
 
 -- =========================================================
--- 8. user_events
+-- 8. wishlists
+-- 사용자 위시리스트
+-- =========================================================
+
+CREATE TABLE wishlists (
+    wishlist_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+
+    user_id BIGINT NOT NULL,
+    product_id BIGINT NOT NULL,
+
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    UNIQUE KEY uk_wishlists_user_product (user_id, product_id),
+
+    CONSTRAINT fk_wishlists_user
+        FOREIGN KEY (user_id) REFERENCES users(user_id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT fk_wishlists_product
+        FOREIGN KEY (product_id) REFERENCES products(product_id)
+        ON DELETE CASCADE,
+
+    INDEX idx_wishlists_user_id (user_id),
+    INDEX idx_wishlists_product_id (product_id),
+    INDEX idx_wishlists_created_at (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+-- =========================================================
+-- 9. user_events
 -- 사용자 행동 로그
 -- =========================================================
 
@@ -251,9 +287,12 @@ CREATE TABLE user_events (
     recommendation_id BIGINT NULL,
 
     event_type VARCHAR(30) NOT NULL,
+    source_page VARCHAR(50) NULL,
     video_id VARCHAR(100) NULL,
     category_name VARCHAR(50) NULL,
     brand VARCHAR(100) NULL,
+    target_url TEXT NULL,
+    metadata_json JSON NULL,
 
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -274,12 +313,13 @@ CREATE TABLE user_events (
     INDEX idx_user_events_recommendation_id (recommendation_id),
     INDEX idx_user_events_event_type (event_type),
     INDEX idx_user_events_video_id (video_id),
-    INDEX idx_user_events_created_at (created_at)
+    INDEX idx_user_events_created_at (created_at),
+    INDEX idx_user_events_user_type_created (user_id, event_type, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 -- =========================================================
--- 9. ai_analysis_logs
+-- 10. ai_analysis_logs
 -- FastAPI AI 서버 요청 / 응답 로그
 -- =========================================================
 
@@ -309,7 +349,7 @@ CREATE TABLE ai_analysis_logs (
 
 
 -- =========================================================
--- 10. affiliate_clicks
+-- 11. affiliate_clicks
 -- 구매하러 가기 버튼 클릭 로그
 -- =========================================================
 
@@ -342,48 +382,6 @@ CREATE TABLE affiliate_clicks (
 
 
 -- =========================================================
--- 11. products.description and wishlists 추가
--- 구매하러 가기 버튼 클릭 로그
--- =========================================================
-
-
-ALTER TABLE products
-ADD COLUMN description TEXT NULL AFTER affiliate_url;
-
-ALTER TABLE users
-ADD COLUMN phone VARCHAR(20) NULL AFTER profile_image_url;
-
-ALTER TABLE users
-ADD COLUMN birth_date DATE NULL AFTER phone;
-
-
-CREATE TABLE wishlists (
-    wishlist_id BIGINT AUTO_INCREMENT PRIMARY KEY,
-
-    user_id BIGINT NOT NULL,
-    product_id BIGINT NOT NULL,
-
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    UNIQUE KEY uk_wishlists_user_product (user_id, product_id),
-
-    INDEX idx_wishlists_user_id (user_id),
-    INDEX idx_wishlists_product_id (product_id),
-
-    CONSTRAINT fk_wishlists_user
-        FOREIGN KEY (user_id)
-        REFERENCES users(user_id)
-        ON DELETE CASCADE,
-
-    CONSTRAINT fk_wishlists_product
-        FOREIGN KEY (product_id)
-        REFERENCES products(product_id)
-        ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-
-
--- =========================================================
 -- Initial Category Data
 -- =========================================================
 
@@ -398,6 +396,10 @@ VALUES
 ('취미/키덜트', NULL, 'Y'),
 ('자동차용품', NULL, 'Y');
 
+
+-- =========================================================
+-- Initial Product Data
+-- =========================================================
 
 INSERT INTO products
 (product_id, title, brand, category_id, category_name, price, image_url, affiliate_url, description, source, review_count, rating, visible_yn, created_at, updated_at)
