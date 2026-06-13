@@ -36,7 +36,13 @@ public class AuthService {
         }
 
         String encodedPassword = passwordEncoder.encode(request.getPassword());
-        User user = userService.createLocalUser(request.getEmail(), encodedPassword, request.getNickname());
+        User user = userService.createLocalUser(
+                request.getEmail(), 
+                encodedPassword, 
+                request.getNickname(),
+                request.getPhone(),
+                request.getBirthDate()
+        );
         return UserResponse.from(user);
     }
 
@@ -71,5 +77,9 @@ public class AuthService {
 
         Long userId = Long.valueOf(authentication.getName());
         return UserResponse.from(userService.findById(userId));
+    }
+
+    public boolean checkEmailAvailability(String email) {
+        return !userService.existsByEmail(email);
     }
 }

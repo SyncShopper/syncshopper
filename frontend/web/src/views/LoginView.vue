@@ -86,7 +86,7 @@ const alertPreparing = () => {
       <div class="login-links">
         <a href="#" @click.prevent="alertPreparing">아이디/비밀번호 찾기</a>
         <span class="separator">|</span>
-        <a href="#" @click.prevent="alertPreparing">일반 회원가입</a>
+        <a href="#" @click.prevent="router.push('/signup')">일반 회원가입</a>
       </div>
     </div>
   </main>
