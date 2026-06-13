@@ -5,10 +5,14 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+
+import java.time.LocalDate;
 
 @Getter
 @Setter
@@ -34,4 +38,13 @@ public class SignupRequest {
     @NotBlank(message = "닉네임은 필수입니다.")
     @Size(max = 50, message = "닉네임은 50자 이하여야 합니다.")
     private String nickname;
+
+    @Schema(description = "Phone Number", example = "01012345678", requiredMode = Schema.RequiredMode.REQUIRED)
+    @NotBlank(message = "전화번호는 필수입니다.")
+    @Pattern(regexp = "^[0-9]{10,11}$", message = "전화번호는 숫자만 10~11자리 입력 가능합니다.")
+    private String phone;
+
+    @Schema(description = "Birth Date", example = "2000-01-01", requiredMode = Schema.RequiredMode.REQUIRED)
+    @NotNull(message = "생년월일은 필수입니다.")
+    private LocalDate birthDate;
 }
