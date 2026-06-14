@@ -24,83 +24,85 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @EnableWebSecurity
 public class SecurityConfig {
 
-    private final JwtAuthenticationFilter jwtAuthenticationFilter;
-    private final CustomOAuth2UserService customOAuth2UserService;
-    private final OAuth2SuccessHandler oauth2SuccessHandler;
-    private final OAuth2FailureHandler oauth2FailureHandler;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+        private final JwtAuthenticationFilter jwtAuthenticationFilter;
+        private final CustomOAuth2UserService customOAuth2UserService;
+        private final OAuth2SuccessHandler oauth2SuccessHandler;
+        private final OAuth2FailureHandler oauth2FailureHandler;
+        private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public SecurityConfig(
-            JwtAuthenticationFilter jwtAuthenticationFilter,
-            CustomOAuth2UserService customOAuth2UserService,
-            OAuth2SuccessHandler oauth2SuccessHandler,
-            OAuth2FailureHandler oauth2FailureHandler
-    ) {
-        this.jwtAuthenticationFilter = jwtAuthenticationFilter;
-        this.customOAuth2UserService = customOAuth2UserService;
-        this.oauth2SuccessHandler = oauth2SuccessHandler;
-        this.oauth2FailureHandler = oauth2FailureHandler;
-    }
+        public SecurityConfig(
+                        JwtAuthenticationFilter jwtAuthenticationFilter,
+                        CustomOAuth2UserService customOAuth2UserService,
+                        OAuth2SuccessHandler oauth2SuccessHandler,
+                        OAuth2FailureHandler oauth2FailureHandler) {
+                this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+                this.customOAuth2UserService = customOAuth2UserService;
+                this.oauth2SuccessHandler = oauth2SuccessHandler;
+                this.oauth2FailureHandler = oauth2FailureHandler;
+        }
 
-    @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        http
-                .csrf(csrf -> csrf.disable())
-                .cors(cors -> {})
-                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .formLogin(form -> form.disable())
-                .httpBasic(httpBasic -> httpBasic.disable())
-                .exceptionHandling(exception -> exception
-                        .authenticationEntryPoint((request, response, authException) ->
-                                writeError(response, ErrorCode.UNAUTHORIZED))
-                        .accessDeniedHandler((request, response, accessDeniedException) ->
-                                writeError(response, ErrorCode.FORBIDDEN))
-                )
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(HttpMethod.GET, "/api/products/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/categories/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/posts/**").permitAll()
-                        .requestMatchers(
-                                "/api/auth/signup",
-                                "/api/auth/login",
-                                "/api/auth/logout",
-                                "/api/health",
-                                "/api/health/db",
-                                "/swagger-ui/**",
-                                "/v3/api-docs/**",
-                                "/swagger-ui.html",
-                                "/oauth2/**",
-                                "/login/oauth2/**"
-                        ).permitAll()
-                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                        .requestMatchers(
-                                "/api/auth/me",
-                                "/api/users/me/**",
-                                "/api/recommendations/**",
-                                "/api/detections/**"
-                        ).authenticated()
-                        .requestMatchers("/api/**").authenticated()
-                        .anyRequest().permitAll()
-                )
-                .oauth2Login(oauth2 -> oauth2
-                        .userInfoEndpoint(userInfo -> userInfo.userService(customOAuth2UserService))
-                        .successHandler(oauth2SuccessHandler)
-                        .failureHandler(oauth2FailureHandler)
-                )
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+        @Bean
+        public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+                http
+                                .csrf(csrf -> csrf.disable())
+                                .cors(cors -> {
+                                })
+                                .sessionManagement(session -> session
+                                                .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                                .formLogin(form -> form.disable())
+                                .httpBasic(httpBasic -> httpBasic.disable())
+                                .exceptionHandling(exception -> exception
+                                                .authenticationEntryPoint(
+                                                                (request, response, authException) -> writeError(
+                                                                                response, ErrorCode.UNAUTHORIZED))
+                                                .accessDeniedHandler((request, response,
+                                                                accessDeniedException) -> writeError(response,
+                                                                                ErrorCode.FORBIDDEN)))
+                                .authorizeHttpRequests(auth -> auth
+                                                .requestMatchers(HttpMethod.GET, "/api/products/**").permitAll()
+                                                .requestMatchers(HttpMethod.GET, "/api/categories/**").permitAll()
+                                                .requestMatchers(HttpMethod.GET, "/api/posts/**").permitAll()
+                                                .requestMatchers(
+                                                                "/api/auth/signup",
+                                                                "/api/auth/login",
+                                                                "/api/auth/logout",
+                                                                "/api/auth/check-email",
+                                                                "/api/health",
+                                                                "/api/health/db",
+                                                                "/swagger-ui/**",
+                                                                "/v3/api-docs/**",
+                                                                "/swagger-ui.html",
+                                                                "/oauth2/**",
+                                                                "/login/oauth2/**")
+                                                .permitAll()
+                                                .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                                                .requestMatchers(
+                                                                "/api/auth/me",
+                                                                "/api/users/me/**",
+                                                                "/api/recommendations/**",
+                                                                "/api/detections/**")
+                                                .authenticated()
+                                                .requestMatchers("/api/**").authenticated()
+                                                .anyRequest().permitAll())
+                                .oauth2Login(oauth2 -> oauth2
+                                                .userInfoEndpoint(userInfo -> userInfo
+                                                                .userService(customOAuth2UserService))
+                                                .successHandler(oauth2SuccessHandler)
+                                                .failureHandler(oauth2FailureHandler))
+                                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
-        return http.build();
-    }
+                return http.build();
+        }
 
-    @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
-    }
+        @Bean
+        public PasswordEncoder passwordEncoder() {
+                return new BCryptPasswordEncoder();
+        }
 
-    private void writeError(HttpServletResponse response, ErrorCode errorCode) throws java.io.IOException {
-        response.setStatus(errorCode.getStatus().value());
-        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        response.setCharacterEncoding("UTF-8");
-        objectMapper.writeValue(response.getWriter(), ApiResponse.fail(errorCode.getMessage()));
-    }
+        private void writeError(HttpServletResponse response, ErrorCode errorCode) throws java.io.IOException {
+                response.setStatus(errorCode.getStatus().value());
+                response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                response.setCharacterEncoding("UTF-8");
+                objectMapper.writeValue(response.getWriter(), ApiResponse.fail(errorCode.getMessage()));
+        }
 }

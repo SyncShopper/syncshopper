@@ -25,10 +25,10 @@
     <insert id="insertUser" parameterType="com.syncshopper.domain.user.User" useGeneratedKeys="true" keyProperty="userId">
         INSERT INTO users (
             email, password, provider, provider_id, nickname, profile_image_url,
-            role, status, created_at, updated_at, last_login_at
+            phone, birth_date, role, status, created_at, updated_at, last_login_at
         ) VALUES (
             #{email}, #{password}, #{provider}, #{providerId}, #{nickname}, #{profileImageUrl},
-            #{role}, #{status}, NOW(), NOW(), #{lastLoginAt}
+            #{phone}, #{birthDate}, #{role}, #{status}, NOW(), NOW(), #{lastLoginAt}
         )
     </insert>
 

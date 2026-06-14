@@ -9,6 +9,7 @@ import com.syncshopper.domain.user.UserStatus;
 import com.syncshopper.mapper.UserMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.time.LocalDate;
 
 @Service
 public class UserService {
@@ -20,12 +21,15 @@ public class UserService {
     }
 
     @Transactional
-    public User createLocalUser(String email, String encodedPassword, String nickname) {
+    public User createLocalUser(String email, String encodedPassword, String nickname, String phone,
+            LocalDate birthDate) {
         User user = User.builder()
                 .email(email)
                 .password(encodedPassword)
                 .provider(AuthProvider.LOCAL)
                 .nickname(nickname)
+                .phone(phone)
+                .birthDate(birthDate)
                 .role(UserRole.USER)
                 .status(UserStatus.ACTIVE)
                 .build();
@@ -34,7 +38,8 @@ public class UserService {
     }
 
     @Transactional
-    public User createOAuthUser(String email, AuthProvider provider, String providerId, String nickname, String profileImageUrl) {
+    public User createOAuthUser(String email, AuthProvider provider, String providerId, String nickname,
+            String profileImageUrl) {
         User user = User.builder()
                 .email(email)
                 .provider(provider)
