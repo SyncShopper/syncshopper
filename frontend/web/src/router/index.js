@@ -18,6 +18,26 @@ const router = createRouter({
       path: '/signup',
       name: 'signup',
       component: () => import('../views/SignupView.vue'),
+    },
+    {
+      path: '/category',
+      name: 'category',
+      component: () => import('../views/CategoryView.vue'),
+    },
+    {
+      path: '/mypage',
+      component: () => import('../views/MyPageView.vue'),
+      children: [
+        {
+          path: '',
+          redirect: '/mypage/profile'
+        },
+        {
+          path: 'profile',
+          name: 'profileEdit',
+          component: () => import('../views/mypage/ProfileEditView.vue'),
+        }
+      ]
     }
   ],
 })

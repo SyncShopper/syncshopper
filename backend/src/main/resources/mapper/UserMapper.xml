@@ -69,11 +69,24 @@
 
     <update id="updateProfile" parameterType="com.syncshopper.domain.user.User">
         UPDATE users
-        SET nickname = #{nickname},
-            phone = #{phone},
-            birth_date = #{birthDate},
-            profile_image_url = #{profileImageUrl},
+        <set>
+            <if test="nickname != null">
+                nickname = #{nickname},
+            </if>
+            <if test="phone != null">
+                phone = #{phone},
+            </if>
+            <if test="birthDate != null">
+                birth_date = #{birthDate},
+            </if>
+            <if test="profileImageUrl != null">
+                profile_image_url = #{profileImageUrl},
+            </if>
+            <if test="password != null">
+                password = #{password},
+            </if>
             updated_at = NOW()
+        </set>
         WHERE user_id = #{userId}
     </update>
 

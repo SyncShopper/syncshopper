@@ -18,6 +18,11 @@ const alertPreparing = () => {
   alert('준비 중입니다')
   isDropdownOpen.value = false
 }
+
+const goToMyPage = () => {
+  isDropdownOpen.value = false
+  router.push('/mypage/profile')
+}
 </script>
 
 <template>
@@ -43,7 +48,7 @@ const alertPreparing = () => {
               <div v-else class="profile-empty"></div>
               
               <div v-show="isDropdownOpen" class="profile-dropdown">
-                <div class="dropdown-item" @click="alertPreparing">마이페이지</div>
+                <div class="dropdown-item" @click="goToMyPage">마이페이지</div>
                 <div class="dropdown-item text-danger" @click="handleLogout">로그아웃</div>
               </div>
             </div>
@@ -59,7 +64,7 @@ const alertPreparing = () => {
       <nav class="gnb">
         <a href="#">베스트 상품리스트</a>
         <a href="#">AI 추천 상품리스트</a>
-        <a href="#">전체 카테고리</a>
+        <RouterLink to="/category">전체 카테고리</RouterLink>
         <a href="#">크롬 익스텐션 설치</a>
         <a href="#">공지사항/FAQ</a>
         <a href="#">이벤트</a>
