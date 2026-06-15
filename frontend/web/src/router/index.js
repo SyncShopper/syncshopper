@@ -23,6 +23,21 @@ const router = createRouter({
       path: '/category',
       name: 'category',
       component: () => import('../views/CategoryView.vue'),
+    },
+    {
+      path: '/mypage',
+      component: () => import('../views/MyPageView.vue'),
+      children: [
+        {
+          path: '',
+          redirect: '/mypage/profile'
+        },
+        {
+          path: 'profile',
+          name: 'profileEdit',
+          component: () => import('../views/mypage/ProfileEditView.vue'),
+        }
+      ]
     }
   ],
 })

@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { categories } from '@/data/categories'
+import AppBanner from '@/components/common/AppBanner.vue'
 
 // State for active category selections
 const selectedMainCategory = ref(categories[0])
@@ -103,12 +104,7 @@ const formatPrice = (price) => {
 <template>
   <main class="category-page">
     <!-- Banner Area -->
-    <section class="banner-section">
-      <div class="banner-content">
-        <h2>배너</h2>
-        <p>시즌 한정 특가 및 기획전을 확인해보세요</p>
-      </div>
-    </section>
+    <AppBanner title="배너" subtitle="시즌 한정 특가 및 기획전을 확인해보세요" bgImage="https://picsum.photos/1200/250" />
 
     <div class="container layout-container">
       <!-- Left Sidebar (Filters) -->
@@ -281,34 +277,6 @@ const formatPrice = (price) => {
   background-color: var(--background-color, #f8f9fa);
   min-height: 100vh;
   padding-bottom: 60px;
-}
-
-/* Banner */
-.banner-section {
-  width: 100%;
-  height: 250px;
-  background: linear-gradient(135deg, #2c3e50, #3498db);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  margin-bottom: 40px;
-}
-
-.banner-content {
-  text-align: center;
-}
-
-.banner-content h2 {
-  font-size: 48px;
-  font-weight: 800;
-  margin-bottom: 10px;
-  letter-spacing: 2px;
-}
-
-.banner-content p {
-  font-size: 16px;
-  opacity: 0.9;
 }
 
 /* Container */
