@@ -32,6 +32,19 @@ public class UserProfileService {
         user.setBirthDate(request.getBirthDate());
         user.setProfileImageUrl(request.getProfileImageUrl());
 
+        if (request.getNewPassword() != null && !request.getNewPassword().isEmpty()) {
+            if (user.getProvider() != AuthProvider.LOCAL || user.getPassword() == null) {
+                throw new CustomException(ErrorCode.OAUTH_USER_PASSWORD_CHANGE_NOT_ALLOWED);
+            }
+            if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
+                throw new CustomException(ErrorCode.CURRENT_PASSWORD_NOT_MATCHED);
+            }
+            if (!request.getNewPassword().equals(request.getConfirmNewPassword())) {
+                throw new CustomException(ErrorCode.PASSWORD_CONFIRM_NOT_MATCHED);
+            }
+            user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        }
+
         userMapper.updateProfile(user);
 
         return UserProfileResponse.from(findUser(userId));

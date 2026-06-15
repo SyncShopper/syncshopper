@@ -18,6 +18,11 @@ const alertPreparing = () => {
   alert('준비 중입니다')
   isDropdownOpen.value = false
 }
+
+const goToMyPage = () => {
+  isDropdownOpen.value = false
+  router.push('/mypage/profile')
+}
 </script>
 
 <template>
@@ -43,7 +48,7 @@ const alertPreparing = () => {
               <div v-else class="profile-empty"></div>
               
               <div v-show="isDropdownOpen" class="profile-dropdown">
-                <div class="dropdown-item" @click="alertPreparing">마이페이지</div>
+                <div class="dropdown-item" @click="goToMyPage">마이페이지</div>
                 <div class="dropdown-item text-danger" @click="handleLogout">로그아웃</div>
               </div>
             </div>
