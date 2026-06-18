@@ -25,17 +25,34 @@ const router = createRouter({
       component: () => import('../views/CategoryView.vue'),
     },
     {
+      path: '/product/:id',
+      name: 'productDetail',
+      component: () => import('../views/ProductDetailView.vue'),
+    },
+    {
       path: '/mypage',
       component: () => import('../views/MyPageView.vue'),
       children: [
         {
           path: '',
-          redirect: '/mypage/profile'
+          redirect: '/mypage/password-check'
+        },
+        {
+          path: 'password-check',
+          name: 'passwordCheck',
+          component: () => import('../views/mypage/PasswordCheckView.vue'),
         },
         {
           path: 'profile',
           name: 'profileEdit',
           component: () => import('../views/mypage/ProfileEditView.vue'),
+          beforeEnter: (to, from, next) => {
+            if (sessionStorage.getItem('passwordVerified') === 'true') {
+              next()
+            } else {
+              next('/mypage/password-check')
+            }
+          }
         }
       ]
     }
