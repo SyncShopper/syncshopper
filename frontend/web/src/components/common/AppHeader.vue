@@ -28,7 +28,7 @@ const goToMyPage = () => {
 
 const goToAdminPage = () => {
   isDropdownOpen.value = false
-  router.push('/admin/board')
+  router.push('/admin/dashboard')
 }
 </script>
 
