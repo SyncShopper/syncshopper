@@ -1,5 +1,7 @@
 console.log("[SyncShopper] content script loaded");
 
+const DEFAULT_BACKEND_BASE_URL = "http://localhost:8080";
+const DEFAULT_FRONTEND_BASE_URL = "http://localhost:5173";
 const DEFAULT_TOAST_DURATION_MS = 3000;
 
 let currentVideo = null;
@@ -9,6 +11,7 @@ let captureOverlay = null;
 let selectionBox = null;
 let captureGuide = null;
 let toastTimer = null;
+let pendingLoginSuccessCallback = null;
 
 function createCaptureButton() {
   const existingButton = document.getElementById("syncshopper-capture-button");
@@ -24,9 +27,17 @@ function createCaptureButton() {
   button.textContent = "\uC0C1\uD488 \uCEA1\uCCD0";
   button.style.display = "none";
 
-  button.addEventListener("click", () => {
+  button.addEventListener("click", async () => {
     console.log("[SyncShopper] capture button clicked");
-    startAreaSelection();
+
+    if (await isLoggedIn()) {
+      startAreaSelection();
+      return;
+    }
+
+    showLoginPanel(() => {
+      startAreaSelection();
+    });
   });
 
   document.body.appendChild(button);
@@ -423,12 +434,198 @@ function getCurrentTimestampSec() {
 
 function getExtensionSettings() {
   return new Promise((resolve) => {
-    chrome.storage.local.get(["backendBaseUrl", "accessToken"], (result) => {
+    chrome.storage.local.get(["backendBaseUrl", "frontendBaseUrl", "accessToken"], (result) => {
       resolve({
-        backendBaseUrl: result.backendBaseUrl,
+        backendBaseUrl: result.backendBaseUrl || DEFAULT_BACKEND_BASE_URL,
+        frontendBaseUrl: result.frontendBaseUrl || DEFAULT_FRONTEND_BASE_URL,
         accessToken: result.accessToken
       });
     });
+  });
+}
+
+async function isLoggedIn() {
+  const { accessToken } = await getExtensionSettings();
+  return Boolean(accessToken);
+}
+
+function showLoginPanel(onLoginSuccess) {
+  removeAreaSelectionOverlay();
+  hideCaptureButton();
+
+  if (typeof onLoginSuccess === "function") {
+    pendingLoginSuccessCallback = onLoginSuccess;
+  }
+
+  const existingPanel = document.getElementById("syncshopper-login-panel");
+
+  if (existingPanel) {
+    const firstInput = existingPanel.querySelector("#syncshopper-login-id");
+
+    if (firstInput) {
+      firstInput.focus();
+    }
+
+    return;
+  }
+
+  const panel = document.createElement("aside");
+  panel.id = "syncshopper-login-panel";
+
+  const closeButton = document.createElement("button");
+  closeButton.id = "syncshopper-login-close-button";
+  closeButton.type = "button";
+  closeButton.textContent = "\u00D7";
+  closeButton.setAttribute("aria-label", "Close SyncShopper login panel");
+  closeButton.addEventListener("click", () => {
+    pendingLoginSuccessCallback = null;
+    panel.remove();
+    showCaptureButton();
+  });
+
+  const title = document.createElement("h2");
+  title.textContent = "SyncShopper \uB85C\uADF8\uC778";
+
+  const description = document.createElement("p");
+  description.textContent = "\uC0C1\uD488 \uCEA1\uCCD0 \uBD84\uC11D\uC744 \uC0AC\uC6A9\uD558\uB824\uBA74 \uBA3C\uC800 \uB85C\uADF8\uC778\uD574\uC8FC\uC138\uC694.";
+
+  const loginIdLabel = document.createElement("label");
+  loginIdLabel.setAttribute("for", "syncshopper-login-id");
+  loginIdLabel.textContent = "\uC544\uC774\uB514";
+
+  const loginIdInput = document.createElement("input");
+  loginIdInput.id = "syncshopper-login-id";
+  loginIdInput.type = "text";
+  loginIdInput.autocomplete = "username";
+  loginIdInput.placeholder = "\uC774\uBA54\uC77C\uC744 \uC785\uB825\uD558\uC138\uC694";
+
+  const passwordLabel = document.createElement("label");
+  passwordLabel.setAttribute("for", "syncshopper-login-password");
+  passwordLabel.textContent = "\uBE44\uBC00\uBC88\uD638";
+
+  const passwordInput = document.createElement("input");
+  passwordInput.id = "syncshopper-login-password";
+  passwordInput.type = "password";
+  passwordInput.autocomplete = "current-password";
+  passwordInput.placeholder = "\uBE44\uBC00\uBC88\uD638\uB97C \uC785\uB825\uD558\uC138\uC694";
+
+  const errorMessage = document.createElement("div");
+  errorMessage.id = "syncshopper-login-error";
+
+  const loginButton = document.createElement("button");
+  loginButton.id = "syncshopper-login-submit-button";
+  loginButton.type = "button";
+  loginButton.textContent = "\uB85C\uADF8\uC778";
+
+  const signupButton = document.createElement("button");
+  signupButton.id = "syncshopper-signup-button";
+  signupButton.type = "button";
+  signupButton.textContent = "\uD68C\uC6D0\uAC00\uC785";
+
+  async function submitLogin() {
+    const loginId = loginIdInput.value.trim();
+    const password = passwordInput.value;
+
+    errorMessage.textContent = "";
+
+    if (!loginId) {
+      errorMessage.textContent = "\uC544\uC774\uB514\uB97C \uC785\uB825\uD574\uC8FC\uC138\uC694.";
+      loginIdInput.focus();
+      return;
+    }
+
+    if (!password) {
+      errorMessage.textContent = "\uBE44\uBC00\uBC88\uD638\uB97C \uC785\uB825\uD574\uC8FC\uC138\uC694.";
+      passwordInput.focus();
+      return;
+    }
+
+    loginButton.disabled = true;
+    loginButton.textContent = "\uB85C\uADF8\uC778 \uC911...";
+
+    try {
+      const authResult = await requestLogin(loginId, password);
+
+      await chrome.storage.local.set({
+        backendBaseUrl: DEFAULT_BACKEND_BASE_URL,
+        frontendBaseUrl: DEFAULT_FRONTEND_BASE_URL,
+        accessToken: authResult.accessToken,
+        authUser: authResult.user || null
+      });
+
+      panel.remove();
+      showToast("\uB85C\uADF8\uC778\uB418\uC5C8\uC2B5\uB2C8\uB2E4.", "success");
+
+      if (typeof pendingLoginSuccessCallback === "function") {
+        const callback = pendingLoginSuccessCallback;
+        pendingLoginSuccessCallback = null;
+        callback();
+      }
+    } catch (error) {
+      errorMessage.textContent = error.message || "\uB85C\uADF8\uC778\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4.";
+    } finally {
+      loginButton.disabled = false;
+      loginButton.textContent = "\uB85C\uADF8\uC778";
+    }
+  }
+
+  loginButton.addEventListener("click", submitLogin);
+  passwordInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      submitLogin();
+    }
+  });
+  signupButton.addEventListener("click", openSignupPage);
+
+  panel.appendChild(closeButton);
+  panel.appendChild(title);
+  panel.appendChild(description);
+  panel.appendChild(loginIdLabel);
+  panel.appendChild(loginIdInput);
+  panel.appendChild(passwordLabel);
+  panel.appendChild(passwordInput);
+  panel.appendChild(errorMessage);
+  panel.appendChild(loginButton);
+  panel.appendChild(signupButton);
+  document.body.appendChild(panel);
+
+  loginIdInput.focus();
+}
+
+function requestLogin(loginId, password) {
+  return new Promise((resolve, reject) => {
+    const requestUrl = `${DEFAULT_BACKEND_BASE_URL}/api/auth/login`;
+
+    chrome.runtime.sendMessage(
+      {
+        type: "SYNC_SHOPPER_LOGIN",
+        requestUrl,
+        requestBody: {
+          email: loginId,
+          password
+        }
+      },
+      (response) => {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+          return;
+        }
+
+        if (!response || !response.success) {
+          reject(new Error(response?.errorMessage || "\uB85C\uADF8\uC778\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4."));
+          return;
+        }
+
+        resolve(response.result);
+      }
+    );
+  });
+}
+
+function openSignupPage() {
+  chrome.runtime.sendMessage({
+    type: "SYNC_SHOPPER_OPEN_SIGNUP",
+    url: `${DEFAULT_FRONTEND_BASE_URL}/signup`
   });
 }
 
@@ -480,7 +677,8 @@ async function sendDetectionAnalyzeRequest(croppedDataUrl) {
   }
 
   if (!accessToken) {
-    showToast("\uD1A0\uD070\uC774 \uC5C6\uC2B5\uB2C8\uB2E4. \uC775\uC2A4\uD150\uC158 \uC124\uC815\uC5D0\uC11C \uD1A0\uD070\uC744 \uC785\uB825\uD574\uC8FC\uC138\uC694.", "warning");
+    showToast("\uB85C\uADF8\uC778\uC774 \uD544\uC694\uD569\uB2C8\uB2E4.", "warning");
+    showLoginPanel();
     throw new Error("accessToken is missing");
   }
 
@@ -511,7 +709,9 @@ async function sendDetectionAnalyzeRequest(croppedDataUrl) {
   }
 
   if (response.status === 401) {
-    showToast("\uB85C\uADF8\uC778\uC774 \uB9CC\uB8CC\uB418\uC5C8\uC2B5\uB2C8\uB2E4. accessToken\uC744 \uB2E4\uC2DC \uC785\uB825\uD574\uC8FC\uC138\uC694.", "error");
+    await chrome.storage.local.remove(["accessToken", "authUser"]);
+    showLoginPanel();
+    showToast("\uB85C\uADF8\uC778\uC774 \uB9CC\uB8CC\uB418\uC5C8\uC2B5\uB2C8\uB2E4. \uB2E4\uC2DC \uB85C\uADF8\uC778\uD574\uC8FC\uC138\uC694.", "error");
     throw new Error("Unauthorized");
   }
 
