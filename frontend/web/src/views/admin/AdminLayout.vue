@@ -1,7 +1,8 @@
 <script setup>
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 
 const router = useRouter()
+const route = useRoute()
 
 const goBackToMain = () => {
   router.push('/')
@@ -20,10 +21,10 @@ const goBackToMain = () => {
       <nav class="sidebar-nav">
         <ul>
           <li class="menu-item" :class="{ active: route.path.startsWith('/admin/dashboard') }">
-            <a href="#" class="menu-link" @click.prevent>
+            <RouterLink to="/admin/dashboard" class="menu-link">
               <i class="fa-solid fa-chart-pie menu-icon"></i>
               <span>Dashboard</span>
-            </a>
+            </RouterLink>
           </li>
           <li class="menu-item" :class="{ active: route.path.startsWith('/admin/user') }">
             <RouterLink to="/admin/user" class="menu-link">
