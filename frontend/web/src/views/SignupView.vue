@@ -1,10 +1,34 @@
 <script setup>
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import axios from 'axios'
 
 const router = useRouter()
+const route = useRoute()
 const step = ref(1)
+
+const signupToken = ref('')
+const isSocialSignup = ref(false)
+
+onMounted(() => {
+  if (route.query.signupToken) {
+    signupToken.value = route.query.signupToken
+    try {
+      const payloadBase64 = signupToken.value.split('.')[1]
+      // Use atob to decode base64, then decodeURIComponent to handle UTF-8 characters properly
+      const payloadString = decodeURIComponent(escape(atob(payloadBase64)))
+      const payload = JSON.parse(payloadString)
+      
+      email.value = payload.email || ''
+      name.value = payload.nickname || ''
+      isEmailVerified.value = true
+      isSocialSignup.value = true
+      emailSuccessMsg.value = '소셜 인증된 이메일입니다.'
+    } catch (e) {
+      console.error('Invalid signupToken', e)
+    }
+  }
+})
 
 // --- Step 1: Terms ---
 const termsService = ref(false)
@@ -31,6 +55,12 @@ const isEmailVerified = ref(false)
 const emailErrorMsg = ref('')
 const emailSuccessMsg = ref('')
 
+const isCodeSent = ref(false)
+const verificationCode = ref('')
+const timer = ref(0)
+const timerStr = ref('05:00')
+let timerInterval = null
+
 const password = ref('')
 const passwordMsg = ref('')
 const passwordMsgType = ref('')
@@ -47,7 +77,29 @@ const birthDay = ref('')
 
 const formErrorMsg = ref('')
 
-const checkEmail = async () => {
+const startTimer = () => {
+  if (timerInterval) clearInterval(timerInterval)
+  timer.value = 300 // 5 minutes in seconds
+  updateTimerStr()
+  
+  timerInterval = setInterval(() => {
+    timer.value--
+    updateTimerStr()
+    if (timer.value <= 0) {
+      clearInterval(timerInterval)
+      emailErrorMsg.value = '인증 시간이 만료되었습니다. 다시 요청해주세요.'
+      isCodeSent.value = false
+    }
+  }, 1000)
+}
+
+const updateTimerStr = () => {
+  const m = Math.floor(timer.value / 60)
+  const s = timer.value % 60
+  timerStr.value = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
+}
+
+const sendEmailCode = async () => {
   if (!email.value) {
     emailErrorMsg.value = '이메일을 입력해주세요.'
     emailSuccessMsg.value = ''
@@ -62,18 +114,47 @@ const checkEmail = async () => {
   }
 
   try {
-    const res = await axios.get('/api/auth/check-email', { params: { email: email.value } })
-    if (res.data.data === true) {
-      isEmailVerified.value = true
-      emailSuccessMsg.value = '사용할 수 있는 이메일입니다.'
-      emailErrorMsg.value = ''
+    const res = await axios.post('/api/auth/email/send-code', { email: email.value })
+    isCodeSent.value = true
+    isEmailVerified.value = false
+    emailSuccessMsg.value = '인증번호가 발송되었습니다. 이메일을 확인해주세요.'
+    emailErrorMsg.value = ''
+    startTimer()
+  } catch (error) {
+    if (error.response && error.response.data && error.response.data.message) {
+      emailErrorMsg.value = error.response.data.message
     } else {
-      isEmailVerified.value = false
-      emailErrorMsg.value = '사용할 수 없는 이메일입니다.'
-      emailSuccessMsg.value = ''
+      emailErrorMsg.value = '인증번호 발송 중 오류가 발생했습니다.'
     }
-  } catch {
-    emailErrorMsg.value = '이메일 확인 중 오류가 발생했습니다.'
+    emailSuccessMsg.value = ''
+  }
+}
+
+const verifyCode = async () => {
+  if (!verificationCode.value) {
+    emailErrorMsg.value = '인증번호를 입력해주세요.'
+    emailSuccessMsg.value = ''
+    return
+  }
+
+  try {
+    const res = await axios.post('/api/auth/email/verify-code', { 
+      email: email.value, 
+      code: verificationCode.value 
+    })
+    
+    isEmailVerified.value = true
+    isCodeSent.value = false
+    if (timerInterval) clearInterval(timerInterval)
+    emailSuccessMsg.value = '이메일 인증이 완료되었습니다.'
+    emailErrorMsg.value = ''
+  } catch (error) {
+    isEmailVerified.value = false
+    if (error.response && error.response.data && error.response.data.message) {
+      emailErrorMsg.value = error.response.data.message
+    } else {
+      emailErrorMsg.value = '인증번호가 올바르지 않습니다.'
+    }
     emailSuccessMsg.value = ''
   }
 }
@@ -133,13 +214,19 @@ const submitSignup = async () => {
   const birthDateStr = `${birthYear.value}-${paddedMonth}-${paddedDay}`
 
   try {
-    await axios.post('/api/auth/signup', {
+    const payload = {
       email: email.value,
       password: password.value,
       nickname: name.value,
       phone: phone.value,
       birthDate: birthDateStr
-    })
+    }
+    
+    if (signupToken.value) {
+      payload.signupToken = signupToken.value
+    }
+
+    await axios.post('/api/auth/signup', payload)
     step.value = 3
   } catch (error) {
     if (error.response && error.response.data && error.response.data.message) {
@@ -225,8 +312,18 @@ const goLogin = () => {
           <span v-if="emailSuccessMsg" class="msg-success">{{ emailSuccessMsg }}</span>
         </div>
         <div class="input-with-btn">
-          <input type="text" v-model="email" placeholder="아이디 입력(6~20자)" class="form-input" @input="isEmailVerified = false">
-          <button type="button" class="btn-check" @click="checkEmail">이메일 확인</button>
+          <input type="text" v-model="email" placeholder="이메일 입력(6~20자)" class="form-input" @input="isEmailVerified = false; isCodeSent = false" :readonly="isSocialSignup">
+          <button type="button" class="btn-check" @click="sendEmailCode" :disabled="isSocialSignup">인증번호 발송</button>
+        </div>
+      </div>
+
+      <div class="form-group" v-if="isCodeSent">
+        <div class="label-row">
+          <label>인증번호 ({{ timerStr }})</label>
+        </div>
+        <div class="input-with-btn">
+          <input type="text" v-model="verificationCode" placeholder="인증번호 6자리 입력" class="form-input" maxlength="6">
+          <button type="button" class="btn-check" @click="verifyCode">인증 확인</button>
         </div>
       </div>
 

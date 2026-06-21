@@ -37,15 +37,20 @@ public class UserService {
         return user;
     }
 
+
+
     @Transactional
-    public User createOAuthUser(String email, AuthProvider provider, String providerId, String nickname,
-            String profileImageUrl) {
+    public User createSocialUserWithDetails(String email, String encodedPassword, AuthProvider provider, String providerId, 
+            String nickname, String profileImageUrl, String phone, LocalDate birthDate) {
         User user = User.builder()
                 .email(email)
+                .password(encodedPassword)
                 .provider(provider)
                 .providerId(providerId)
                 .nickname(nickname)
                 .profileImageUrl(profileImageUrl)
+                .phone(phone)
+                .birthDate(birthDate)
                 .role(UserRole.USER)
                 .status(UserStatus.ACTIVE)
                 .build();
@@ -84,5 +89,18 @@ public class UserService {
         user.setProfileImageUrl(profileImageUrl);
         userMapper.updateOAuthUser(user);
         return findById(user.getUserId());
+    }
+
+    public User findByNicknameAndPhone(String nickname, String phone) {
+        return userMapper.findByNicknameAndPhone(nickname, phone);
+    }
+
+    public User findByEmailAndNicknameAndPhone(String email, String nickname, String phone) {
+        return userMapper.findByEmailAndNicknameAndPhone(email, nickname, phone);
+    }
+
+    @Transactional
+    public void updatePassword(Long userId, String encodedPassword) {
+        userMapper.updatePassword(userId, encodedPassword);
     }
 }

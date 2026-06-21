@@ -10,6 +10,7 @@ import com.syncshopper.dto.request.SignupRequest;
 import com.syncshopper.dto.response.LoginResponse;
 import com.syncshopper.dto.response.UserResponse;
 import com.syncshopper.security.JwtTokenProvider;
+import io.jsonwebtoken.Claims;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -22,27 +23,52 @@ public class AuthService {
     private final UserService userService;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
+    private final EmailVerificationService emailVerificationService;
 
-    public AuthService(UserService userService, PasswordEncoder passwordEncoder, JwtTokenProvider jwtTokenProvider) {
+    public AuthService(UserService userService, PasswordEncoder passwordEncoder, JwtTokenProvider jwtTokenProvider, EmailVerificationService emailVerificationService) {
         this.userService = userService;
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenProvider = jwtTokenProvider;
+        this.emailVerificationService = emailVerificationService;
     }
 
     @Transactional
     public UserResponse signup(SignupRequest request) {
+        if (request.getSignupToken() != null && !request.getSignupToken().isEmpty()) {
+            Claims claims = jwtTokenProvider.parseSignupToken(request.getSignupToken());
+            String email = claims.get("email", String.class);
+            String providerStr = claims.get("provider", String.class);
+            String providerId = claims.get("providerId", String.class);
+            String profileImageUrl = claims.get("profileImageUrl", String.class);
+
+            if (userService.existsByEmail(email)) {
+                throw new CustomException(ErrorCode.DUPLICATE_EMAIL);
+            }
+
+            String encodedPassword = passwordEncoder.encode(request.getPassword());
+            User user = userService.createSocialUserWithDetails(
+                    email,
+                    encodedPassword,
+                    AuthProvider.valueOf(providerStr),
+                    providerId,
+                    request.getNickname(),
+                    profileImageUrl,
+                    request.getPhone(),
+                    request.getBirthDate());
+            return UserResponse.from(user);
+        }
+
         if (userService.existsByEmail(request.getEmail())) {
             throw new CustomException(ErrorCode.DUPLICATE_EMAIL);
         }
 
         String encodedPassword = passwordEncoder.encode(request.getPassword());
         User user = userService.createLocalUser(
-                request.getEmail(), 
-                encodedPassword, 
+                request.getEmail(),
+                encodedPassword,
                 request.getNickname(),
                 request.getPhone(),
-                request.getBirthDate()
-        );
+                request.getBirthDate());
         return UserResponse.from(user);
     }
 
@@ -81,5 +107,30 @@ public class AuthService {
 
     public boolean checkEmailAvailability(String email) {
         return !userService.existsByEmail(email);
+    }
+
+    public String findEmail(com.syncshopper.dto.request.FindEmailRequest request) {
+        User user = userService.findByNicknameAndPhone(request.getNickname(), request.getPhone());
+        if (user == null) {
+            throw new CustomException(ErrorCode.USER_NOT_FOUND);
+        }
+        return user.getEmail();
+    }
+
+    @Transactional
+    public void findPassword(com.syncshopper.dto.request.FindPasswordRequest request) {
+        User user = userService.findByEmailAndNicknameAndPhone(request.getEmail(), request.getNickname(), request.getPhone());
+        if (user == null) {
+            throw new CustomException(ErrorCode.USER_NOT_FOUND);
+        }
+
+        // 임시 비밀번호 생성 (8자리 영문자+숫자 랜덤)
+        String tempPassword = java.util.UUID.randomUUID().toString().replace("-", "").substring(0, 8) + "!";
+        
+        // 비밀번호 업데이트
+        userService.updatePassword(user.getUserId(), passwordEncoder.encode(tempPassword));
+
+        // 이메일 전송
+        emailVerificationService.sendTemporaryPassword(user.getEmail(), tempPassword);
     }
 }
