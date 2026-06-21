@@ -92,4 +92,38 @@ public class PostService {
         }
         return post;
     }
+    public PostDetailResponse createPost(Long adminId, com.syncshopper.dto.request.PostCreateRequest request) {
+        Post post = Post.builder()
+                .title(request.getTitle())
+                .content(request.getContent())
+                .postType(request.getPostType())
+                .visibleYn("Y")
+                .createdBy(adminId)
+                .build();
+
+        postMapper.insertPost(post);
+        return getPostDetail(post.getPostId());
+    }
+
+    public PostDetailResponse updatePost(Long adminId, Long postId, com.syncshopper.dto.request.PostUpdateRequest request) {
+        Post post = findVisiblePost(postId);
+        
+        post.setTitle(request.getTitle());
+        post.setContent(request.getContent());
+        post.setPostType(request.getPostType());
+        post.setVisibleYn(request.getVisibleYn());
+        
+        postMapper.updatePost(post);
+        
+        if ("Y".equals(post.getVisibleYn())) {
+            return getPostDetail(postId);
+        }
+        return PostDetailResponse.from(post);
+    }
+
+    public void deletePost(Long adminId, Long postId) {
+        Post post = findVisiblePost(postId);
+        post.setVisibleYn("N");
+        postMapper.updatePost(post);
+    }
 }

@@ -20,14 +20,29 @@ const router = createRouter({
       component: () => import('../views/SignupView.vue'),
     },
     {
+      path: '/best',
+      name: 'best',
+      component: () => import('../views/BestProductsView.vue'),
+    },
+    {
       path: '/category',
       name: 'category',
       component: () => import('../views/CategoryView.vue'),
     },
     {
+      path: '/ai-recommend',
+      name: 'aiRecommend',
+      component: () => import('../views/AiRecommendView.vue'),
+    },
+    {
       path: '/product/:id',
       name: 'productDetail',
       component: () => import('../views/ProductDetailView.vue'),
+    },
+    {
+      path: '/board',
+      name: 'board',
+      component: () => import('../views/BoardView.vue'),
     },
     {
       path: '/mypage',
@@ -53,6 +68,32 @@ const router = createRouter({
               next('/mypage/password-check')
             }
           }
+        }
+      ]
+    },
+    {
+      path: '/admin',
+      component: () => import('../views/admin/AdminLayout.vue'),
+      children: [
+        {
+          path: 'dashboard',
+          name: 'adminDashboard',
+          component: () => import('../views/admin/AdminDashboardView.vue'),
+        },
+        {
+          path: 'board',
+          name: 'adminBoard',
+          component: () => import('../views/admin/AdminBoardView.vue'),
+        },
+        {
+          path: 'board/write',
+          name: 'adminBoardWrite',
+          component: () => import('../views/admin/AdminBoardWriteView.vue'),
+        },
+        {
+          path: 'user',
+          name: 'adminUser',
+          component: () => import('../views/admin/AdminUserView.vue'),
         }
       ]
     }

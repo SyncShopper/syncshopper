@@ -20,14 +20,18 @@ public class PostListResponse {
 
     private Long postId;
     private String title;
+    private String content;
     private String postType;
+    private String visibleYn;
     private LocalDateTime createdAt;
 
     public static PostListResponse from(Post post) {
         return PostListResponse.builder()
                 .postId(post.getPostId())
                 .title(post.getTitle())
+                .content(post.getContent())
                 .postType(post.getPostType().name())
+                .visibleYn(post.getVisibleYn())
                 .createdAt(post.getCreatedAt())
                 .build();
     }

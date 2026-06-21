@@ -59,4 +59,19 @@
         LIMIT 1
     </select>
 
+    <insert id="insertPost" parameterType="com.syncshopper.domain.post.Post" useGeneratedKeys="true" keyProperty="postId">
+        INSERT INTO posts (title, content, post_type, visible_yn, created_by, created_at, updated_at)
+        VALUES (#{title}, #{content}, #{postType}, #{visibleYn}, #{createdBy}, NOW(), NOW())
+    </insert>
+
+    <update id="updatePost" parameterType="com.syncshopper.domain.post.Post">
+        UPDATE posts
+        SET title = #{title},
+            content = #{content},
+            post_type = #{postType},
+            visible_yn = #{visibleYn},
+            updated_at = NOW()
+        WHERE post_id = #{postId}
+    </update>
+
 </mapper>

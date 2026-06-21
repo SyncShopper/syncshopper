@@ -19,9 +19,16 @@ const alertPreparing = () => {
   isDropdownOpen.value = false
 }
 
+void alertPreparing
+
 const goToMyPage = () => {
   isDropdownOpen.value = false
   router.push('/mypage/profile')
+}
+
+const goToAdminPage = () => {
+  isDropdownOpen.value = false
+  router.push('/admin/dashboard')
 }
 </script>
 
@@ -49,6 +56,7 @@ const goToMyPage = () => {
               
               <div v-show="isDropdownOpen" class="profile-dropdown">
                 <div class="dropdown-item" @click="goToMyPage">마이페이지</div>
+                <div v-if="authStore.userInfo?.role === 'ADMIN'" class="dropdown-item text-primary fw-bold" @click="goToAdminPage">관리자 페이지</div>
                 <div class="dropdown-item text-danger" @click="handleLogout">로그아웃</div>
               </div>
             </div>
@@ -62,11 +70,11 @@ const goToMyPage = () => {
         </div>
       </div>
       <nav class="gnb">
-        <a href="#">베스트 상품리스트</a>
-        <a href="#">AI 추천 상품리스트</a>
+        <RouterLink to="/best">베스트 상품리스트</RouterLink>
+        <RouterLink to="/ai-recommend">AI 추천 상품리스트</RouterLink>
         <RouterLink to="/category">전체 카테고리</RouterLink>
         <a href="#">크롬 익스텐션 설치</a>
-        <a href="#">공지사항/FAQ</a>
+        <RouterLink to="/board">공지사항/FAQ</RouterLink>
         <a href="#">이벤트</a>
       </nav>
     </div>
@@ -204,5 +212,13 @@ header {
 
 .text-danger:hover {
   background-color: #ffeaea;
+}
+
+.text-primary {
+  color: var(--primary-color, #4361ee);
+}
+
+.fw-bold {
+  font-weight: bold;
 }
 </style>

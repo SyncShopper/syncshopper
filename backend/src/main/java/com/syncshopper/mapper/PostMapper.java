@@ -15,4 +15,8 @@ public interface PostMapper {
     long countPosts(PostSearchCondition condition);
 
     Post findVisiblePostById(@Param("postId") Long postId);
+
+    void insertPost(Post post);
+
+    void updatePost(Post post);
 }
