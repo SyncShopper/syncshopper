@@ -60,6 +60,22 @@ const router = createRouter({
           }
         }
       ]
+    },
+    {
+      path: '/admin',
+      component: () => import('../views/admin/AdminLayout.vue'),
+      children: [
+        {
+          path: 'board',
+          name: 'adminBoard',
+          component: () => import('../views/admin/AdminBoardView.vue'),
+        },
+        {
+          path: 'board/write',
+          name: 'adminBoardWrite',
+          component: () => import('../views/admin/AdminBoardWriteView.vue'),
+        }
+      ]
     }
   ],
 })

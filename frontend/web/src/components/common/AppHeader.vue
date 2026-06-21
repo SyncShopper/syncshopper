@@ -23,6 +23,11 @@ const goToMyPage = () => {
   isDropdownOpen.value = false
   router.push('/mypage/profile')
 }
+
+const goToAdminPage = () => {
+  isDropdownOpen.value = false
+  router.push('/admin/board')
+}
 </script>
 
 <template>
@@ -49,6 +54,7 @@ const goToMyPage = () => {
               
               <div v-show="isDropdownOpen" class="profile-dropdown">
                 <div class="dropdown-item" @click="goToMyPage">마이페이지</div>
+                <div v-if="authStore.userInfo?.role === 'ADMIN'" class="dropdown-item text-primary fw-bold" @click="goToAdminPage">관리자 페이지</div>
                 <div class="dropdown-item text-danger" @click="handleLogout">로그아웃</div>
               </div>
             </div>
@@ -204,5 +210,13 @@ header {
 
 .text-danger:hover {
   background-color: #ffeaea;
+}
+
+.text-primary {
+  color: var(--primary-color, #4361ee);
+}
+
+.fw-bold {
+  font-weight: bold;
 }
 </style>
