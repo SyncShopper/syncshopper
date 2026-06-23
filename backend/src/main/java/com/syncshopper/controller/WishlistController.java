@@ -41,16 +41,31 @@ public class WishlistController {
 
     @Operation(summary = "Add product to my wishlist")
     @PostMapping("/{productId}")
-    public ApiResponse<Void> addWishlist(@PathVariable Long productId) {
-        wishlistService.addWishlist(currentUserId(), productId);
+    public ApiResponse<Void> addWishlist(
+            @PathVariable Long productId,
+            @RequestParam(defaultValue = "UNKNOWN") String sourcePage
+    ) {
+        wishlistService.addWishlist(currentUserId(), productId, sourcePage);
         return ApiResponse.success("Wishlist added successfully.");
     }
 
     @Operation(summary = "Remove product from my wishlist")
     @DeleteMapping("/{productId}")
-    public ApiResponse<Void> removeWishlist(@PathVariable Long productId) {
-        wishlistService.removeWishlist(currentUserId(), productId);
+    public ApiResponse<Void> removeWishlist(
+            @PathVariable Long productId,
+            @RequestParam(defaultValue = "UNKNOWN") String sourcePage
+    ) {
+        wishlistService.removeWishlist(currentUserId(), productId, sourcePage);
         return ApiResponse.success("Wishlist removed successfully.");
+    }
+
+    @Operation(summary = "Check if product is in my wishlist")
+    @GetMapping("/check/{productId}")
+    public ApiResponse<Boolean> checkWishlist(@PathVariable Long productId) {
+        return ApiResponse.success(
+                "Wishlist status checked successfully.",
+                wishlistService.checkWishlist(currentUserId(), productId)
+        );
     }
 
     private Long currentUserId() {

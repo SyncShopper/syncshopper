@@ -40,9 +40,13 @@ public class WishlistService {
         return PageResponse.of(products, pageRequest.page(), pageRequest.size(), totalCount);
     }
 
+    public boolean checkWishlist(Long userId, Long productId) {
+        return wishlistMapper.findByUserIdAndProductId(userId, productId) != null;
+    }
+
     @Transactional
-    public void addWishlist(Long userId, Long productId) {
-        ensureVisibleProduct(productId);
+    public void addWishlist(Long userId, Long productId, String sourcePage) {
+        Product product = ensureVisibleProduct(productId);
 
         Wishlist existingWishlist = wishlistMapper.findByUserIdAndProductId(userId, productId);
         if (existingWishlist != null) {
@@ -58,17 +62,17 @@ public class WishlistService {
                 productId,
                 null,
                 UserEventType.WISHLIST_ADD,
-                "WISHLIST",
+                sourcePage,
                 null,
-                null,
-                null,
-                null
+                product.getCategoryName(),
+                product.getBrand(),
+                product.getAffiliateUrl()
         );
     }
 
     @Transactional
-    public void removeWishlist(Long userId, Long productId) {
-        ensureVisibleProduct(productId);
+    public void removeWishlist(Long userId, Long productId, String sourcePage) {
+        Product product = ensureVisibleProduct(productId);
 
         int deletedCount = wishlistMapper.deleteWishlist(userId, productId);
         if (deletedCount < 1) {
@@ -80,19 +84,20 @@ public class WishlistService {
                 productId,
                 null,
                 UserEventType.WISHLIST_REMOVE,
-                "WISHLIST",
+                sourcePage,
                 null,
-                null,
-                null,
-                null
+                product.getCategoryName(),
+                product.getBrand(),
+                product.getAffiliateUrl()
         );
     }
 
-    private void ensureVisibleProduct(Long productId) {
+    private Product ensureVisibleProduct(Long productId) {
         Product product = productMapper.findById(productId);
         if (product == null) {
             throw new CustomException(ErrorCode.PRODUCT_NOT_FOUND);
         }
+        return product;
     }
 
     private PageRequest normalizePage(int page, int size) {

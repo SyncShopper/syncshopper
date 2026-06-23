@@ -3,6 +3,8 @@ import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppBanner from '@/components/common/AppBanner.vue'
 import { useAuthStore } from '@/stores/auth'
+import { userEventApi } from '@/api/userEvent'
+import { wishlistApi } from '@/api/wishlist'
 
 const route = useRoute()
 const router = useRouter()
@@ -19,6 +21,7 @@ const error = ref(null)
 const selectedImage = ref('')
 
 const relatedProducts = ref([])
+const isWishlisted = ref(false)
 
 // ==========================================
 // 2. 임시 데이터 로드 함수 (API 연동 대체)
@@ -40,6 +43,28 @@ const fetchProductDetail = async (id) => {
         link: parsed.affiliateUrl || parsed.link || ''
       }
       selectedImage.value = product.value.mainImage
+      
+      // 로그 저장 및 내부 productId 확보
+      if (authStore.isLoggedIn) {
+        try {
+          const res = await userEventApi.logProductDetailView({
+            productId: product.value.id,
+            product: parsed,
+            sourcePage: history.state.sourcePage || 'PRODUCT_DETAIL'
+          })
+          if (res && res.data && res.data.productId) {
+            product.value.id = res.data.productId
+          }
+          
+          // 위시리스트 추가 여부 확인
+          const wishRes = await wishlistApi.checkWishlist(product.value.id)
+          if (wishRes && wishRes.data !== undefined) {
+            isWishlisted.value = wishRes.data
+          }
+        } catch (err) {
+          console.error('이벤트 로그 저장 실패:', err)
+        }
+      }
     } else {
       error.value = '상품 데이터를 불러올 수 없습니다. 카테고리 페이지를 통해 접근해주세요.'
     }
@@ -67,23 +92,33 @@ const formatPrice = (price) => {
   return price.toLocaleString('ko-KR') + '원'
 }
 
-const addToWishlist = () => {
+const toggleWishlist = async () => {
   if (!authStore.isLoggedIn) {
     alert('로그인이 필요한 서비스입니다.')
     router.push('/login')
     return
   }
   
-  const wishlistItem = {
-    productId: product.value.id,
-    title: product.value.title,
-    price: product.value.price,
-    image: product.value.mainImage,
-    link: product.value.link
-  }
+  const sourcePage = history.state.sourcePage || 'PRODUCT_DETAIL'
   
-  console.log('위시리스트 추가:', wishlistItem)
-  alert('위시리스트에 상품이 추가되었습니다.')
+  try {
+    if (isWishlisted.value) {
+      await wishlistApi.removeWishlist(product.value.id, sourcePage)
+      isWishlisted.value = false
+      alert('위시리스트에서 상품이 제거되었습니다.')
+    } else {
+      await wishlistApi.addWishlist(product.value.id, sourcePage)
+      isWishlisted.value = true
+      alert('위시리스트에 상품이 추가되었습니다.')
+    }
+  } catch (error) {
+    console.error('위시리스트 처리 중 오류 발생:', error)
+    if (error.response?.data?.message) {
+      alert(error.response.data.message)
+    } else {
+      alert('위시리스트 처리에 실패했습니다. 다시 시도해주세요.')
+    }
+  }
 }
 
 const goToLink = () => {
@@ -147,7 +182,10 @@ onMounted(() => {
           
           <!-- 액션 버튼 -->
           <div class="action-buttons">
-            <button class="btn-cart" @click="addToWishlist"><i class="fa-regular fa-heart"></i> 위시리스트 추가</button>
+            <button class="btn-cart" @click="toggleWishlist">
+              <i :class="isWishlisted ? 'fa-solid fa-heart' : 'fa-regular fa-heart'" :style="isWishlisted ? 'color: #e74c3c;' : ''"></i> 
+              {{ isWishlisted ? '위시리스트 제거' : '위시리스트 추가' }}
+            </button>
             <button class="btn-buy" @click="goToLink">해당 상품 링크로 이동</button>
           </div>
         </div>
