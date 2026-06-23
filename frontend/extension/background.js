@@ -19,6 +19,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === "SYNC_SHOPPER_LOG_USER_EVENT") {
+    sendUserEventLogRequest(message, sendResponse);
+    return true;
+  }
+
   if (message.type === "SYNC_SHOPPER_LOGIN") {
     sendLoginRequest(message, sendResponse);
     return true;
@@ -225,6 +230,59 @@ async function sendCommerceSearchRequest(message, sendResponse) {
     });
   } catch (error) {
     console.error("[SyncShopper] commerce search request failed", error);
+
+    sendResponse({
+      success: false,
+      errorCode: "NETWORK_ERROR",
+      errorMessage: error.message
+    });
+  }
+}
+
+async function sendUserEventLogRequest(message, sendResponse) {
+  const { requestUrl, accessToken, requestBody } = message;
+
+  if (!requestUrl || !accessToken || !requestBody) {
+    sendResponse({
+      success: false,
+      errorMessage: "Missing user event log request data"
+    });
+    return;
+  }
+
+  try {
+    const response = await fetch(requestUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${accessToken}`
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    let result = null;
+    const responseText = await response.text();
+
+    if (responseText) {
+      try {
+        result = JSON.parse(responseText);
+      } catch (error) {
+        result = responseText;
+      }
+    }
+
+    const isApiResponse = result && typeof result === "object" && Object.prototype.hasOwnProperty.call(result, "success");
+    const isSuccess = response.ok && (!isApiResponse || result.success === true);
+
+    sendResponse({
+      success: isSuccess,
+      status: response.status,
+      result: isApiResponse ? result.data : result,
+      message: isApiResponse ? result.message : null,
+      errorMessage: isSuccess ? null : (isApiResponse ? result.message : `Request failed: ${response.status}`)
+    });
+  } catch (error) {
+    console.error("[SyncShopper] user event log request failed", error);
 
     sendResponse({
       success: false,
