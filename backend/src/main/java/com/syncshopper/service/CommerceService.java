@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import org.springframework.cache.annotation.Cacheable;
 
 @Slf4j
@@ -55,7 +56,7 @@ public class CommerceService {
 
         return response.getItems().stream()
                 .limit(TOP3_LIMIT)
-                .map(this::toCommerceProductResponse)
+                .map(this::toPersistedCommerceProductResponse)
                 .toList();
     }
 
@@ -82,7 +83,7 @@ public class CommerceService {
             }
 
             for (NaverShoppingItemResponse item : response.getItems()) {
-                CommerceProductResponse product = toCommerceProductResponse(item);
+                CommerceProductResponse product = toPersistedCommerceProductResponse(item);
                 productsByKey.putIfAbsent(deduplicateKey(product), product);
             }
 
@@ -99,6 +100,17 @@ public class CommerceService {
         return products;
     }
 
+    public List<CommerceProductResponse> persistProducts(List<CommerceProductResponse> products) {
+        if (products == null || products.isEmpty()) {
+            return List.of();
+        }
+
+        return products.stream()
+                .filter(Objects::nonNull)
+                .map(this::ensurePersistedCommerceProduct)
+                .toList();
+    }
+
     private CommerceProductResponse toCommerceProductResponse(NaverShoppingItemResponse item) {
         return CommerceProductResponse.builder()
                 .title(cleanHtml(item.getTitle()))
@@ -111,6 +123,20 @@ public class CommerceService {
                 .source(NAVER_SOURCE)
                 .externalProductId(item.getProductId())
                 .build();
+    }
+
+    private CommerceProductResponse toPersistedCommerceProductResponse(NaverShoppingItemResponse item) {
+        CommerceProductResponse product = toCommerceProductResponse(item);
+        return ensurePersistedCommerceProduct(product);
+    }
+
+    private CommerceProductResponse ensurePersistedCommerceProduct(CommerceProductResponse product) {
+        if (product.getProductId() != null) {
+            return product;
+        }
+
+        product.setProductId(productUpsertService.upsertCommerceProduct(product));
+        return product;
     }
 
 

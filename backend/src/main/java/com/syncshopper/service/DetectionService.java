@@ -168,6 +168,12 @@ public class DetectionService {
                 ? List.of()
                 : aiResult.getProducts();
 
+        try {
+            products = commerceService.persistProducts(products);
+        } catch (RuntimeException e) {
+            log.warn("[SyncShopper Commerce Products Result] product persistence failed detectionId={}", detection.getDetectionId(), e);
+        }
+
         log.info(
                 "[SyncShopper AI Commerce Query Result] detectionId={} primaryQuery='{}' fallbackQueries={} normalizedBrand='{}' normalizedModel='{}' normalizedCategory='{}' queryConfidence={} reason='{}'",
                 detection.getDetectionId(),

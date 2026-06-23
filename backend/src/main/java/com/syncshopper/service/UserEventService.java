@@ -7,6 +7,7 @@ import com.syncshopper.common.exception.ErrorCode;
 import com.syncshopper.domain.product.Product;
 import com.syncshopper.domain.user.UserEvent;
 import com.syncshopper.domain.user.UserEventType;
+import com.syncshopper.dto.request.UserEventCreateRequest;
 import com.syncshopper.dto.request.ProductDetailViewEventRequest;
 import com.syncshopper.dto.request.ProductClickEventRequest;
 import com.syncshopper.dto.response.UserEventResponse;
@@ -16,7 +17,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.LinkedHashMap;
 import java.util.Map;
 
 @RequiredArgsConstructor
@@ -26,7 +26,29 @@ public class UserEventService {
     private final UserEventMapper userEventMapper;
     private final ProductMapper productMapper;
     private final ProductUpsertService productUpsertService;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
+
+    @Transactional
+    public UserEventResponse createUserEvent(Long userId, UserEventCreateRequest request) {
+        UserEventType eventType = parseEventType(request.getEventType());
+        Product product = validateProductForEvent(eventType, request.getProductId());
+
+        UserEvent userEvent = createInternalEvent(
+                userId,
+                request.getProductId(),
+                request.getRecommendationId(),
+                eventType,
+                request.getSourcePage(),
+                request.getVideoId(),
+                firstNonBlank(request.getCategoryName(), product == null ? null : product.getCategoryName()),
+                firstNonBlank(request.getBrand(), product == null ? null : product.getBrand()),
+                request.getTargetUrl(),
+                request.getMetadataJson()
+        );
+
+        UserEvent savedEvent = userEventMapper.findById(userEvent.getEventId());
+        return UserEventResponse.from(savedEvent);
+    }
 
     @Transactional
     public UserEventResponse createProductDetailViewEvent(Long userId, ProductDetailViewEventRequest request) {
@@ -95,27 +117,88 @@ public class UserEventService {
             String brand,
             String targetUrl
     ) {
+        return createInternalEvent(
+                userId,
+                productId,
+                recommendationId,
+                eventType,
+                sourcePage,
+                videoId,
+                categoryName,
+                brand,
+                targetUrl,
+                null
+        );
+    }
+
+    public UserEvent createInternalEvent(
+            Long userId,
+            Long productId,
+            Long recommendationId,
+            UserEventType eventType,
+            String sourcePage,
+            String videoId,
+            String categoryName,
+            String brand,
+            String targetUrl,
+            Map<String, Object> metadataJson
+    ) {
         UserEvent userEvent = UserEvent.builder()
                 .userId(userId)
                 .productId(productId)
+                .recommendationId(recommendationId)
                 .eventType(eventType)
                 .sourcePage(sourcePage)
+                .videoId(videoId)
+                .categoryName(categoryName)
+                .brand(brand)
                 .targetUrl(targetUrl)
-                .metadataJson(toMetadataJson(recommendationId, videoId, categoryName, brand))
+                .metadataJson(toMetadataJson(metadataJson))
                 .build();
 
         userEventMapper.insertUserEvent(userEvent);
         return userEvent;
     }
 
-    private String toMetadataJson(Long recommendationId, String videoId, String categoryName, String brand) {
-        Map<String, Object> metadata = new LinkedHashMap<>();
-        putIfNotNull(metadata, "recommendationId", recommendationId);
-        putIfNotBlank(metadata, "videoId", videoId);
-        putIfNotBlank(metadata, "categoryName", categoryName);
-        putIfNotBlank(metadata, "brand", brand);
+    private Product validateProductForEvent(UserEventType eventType, Long productId) {
+        if (productId == null) {
+            if (requiresProduct(eventType)) {
+                throw new CustomException(ErrorCode.INVALID_INPUT_VALUE, "Product ID is required for this event type.");
+            }
+            return null;
+        }
 
-        if (metadata.isEmpty()) {
+        Product product = productMapper.findById(productId);
+        if (product == null) {
+            throw new CustomException(ErrorCode.PRODUCT_NOT_FOUND);
+        }
+        return product;
+    }
+
+    private boolean requiresProduct(UserEventType eventType) {
+        return eventType == UserEventType.PRODUCT_DETAIL_VIEW
+                || eventType == UserEventType.PRODUCT_CLICK
+                || eventType == UserEventType.AFFILIATE_CLICK
+                || eventType == UserEventType.WISHLIST_ADD
+                || eventType == UserEventType.WISHLIST_REMOVE
+                || eventType == UserEventType.PRODUCT_IGNORE
+                || eventType == UserEventType.PRODUCT_SAVE;
+    }
+
+    private UserEventType parseEventType(String value) {
+        if (value == null || value.isBlank()) {
+            throw new CustomException(ErrorCode.INVALID_INPUT_VALUE, "Event type is required.");
+        }
+
+        try {
+            return UserEventType.valueOf(value.trim());
+        } catch (IllegalArgumentException e) {
+            throw new CustomException(ErrorCode.INVALID_INPUT_VALUE, "Unsupported event type: " + value);
+        }
+    }
+
+    private String toMetadataJson(Map<String, Object> metadata) {
+        if (metadata == null || metadata.isEmpty()) {
             return null;
         }
 
@@ -126,15 +209,10 @@ public class UserEventService {
         }
     }
 
-    private void putIfNotNull(Map<String, Object> metadata, String key, Object value) {
-        if (value != null) {
-            metadata.put(key, value);
+    private String firstNonBlank(String first, String second) {
+        if (first != null && !first.isBlank()) {
+            return first;
         }
-    }
-
-    private void putIfNotBlank(Map<String, Object> metadata, String key, String value) {
-        if (value != null && !value.isBlank()) {
-            metadata.put(key, value);
-        }
+        return second;
     }
 }

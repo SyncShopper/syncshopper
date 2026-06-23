@@ -6,6 +6,7 @@ import com.syncshopper.common.response.ApiResponse;
 import com.syncshopper.dto.request.AffiliateClickRequest;
 import com.syncshopper.dto.request.ProductClickEventRequest;
 import com.syncshopper.dto.request.ProductDetailViewEventRequest;
+import com.syncshopper.dto.request.UserEventCreateRequest;
 import com.syncshopper.dto.response.AffiliateClickResponse;
 import com.syncshopper.dto.response.UserEventResponse;
 import com.syncshopper.service.AffiliateClickService;
@@ -29,6 +30,17 @@ public class UserEventController {
 
     private final UserEventService userEventService;
     private final AffiliateClickService affiliateClickService;
+
+    @Operation(summary = "Save generic user event")
+    @PostMapping
+    public ApiResponse<UserEventResponse> createUserEvent(
+            @Valid @RequestBody UserEventCreateRequest request
+    ) {
+        return ApiResponse.success(
+                "User event saved.",
+                userEventService.createUserEvent(currentUserId(), request)
+        );
+    }
 
     @Operation(summary = "Save product detail view event")
     @PostMapping("/product-detail-view")

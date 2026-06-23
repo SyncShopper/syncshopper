@@ -18,8 +18,12 @@ public class UserEvent {
     private Long eventId;
     private Long userId;
     private Long productId;
+    private Long recommendationId;
     private UserEventType eventType;
     private String sourcePage;
+    private String videoId;
+    private String categoryName;
+    private String brand;
     private String targetUrl;
     private String metadataJson;
     private LocalDateTime createdAt;
