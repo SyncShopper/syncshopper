@@ -9,8 +9,12 @@
         <id property="eventId" column="event_id"/>
         <result property="userId" column="user_id"/>
         <result property="productId" column="product_id"/>
+        <result property="recommendationId" column="recommendation_id"/>
         <result property="eventType" column="event_type"/>
         <result property="sourcePage" column="source_page"/>
+        <result property="videoId" column="video_id"/>
+        <result property="categoryName" column="category_name"/>
+        <result property="brand" column="brand"/>
         <result property="targetUrl" column="target_url"/>
         <result property="metadataJson" column="metadata_json"/>
         <result property="createdAt" column="created_at"/>
@@ -23,16 +27,24 @@
         INSERT INTO user_events (
             user_id,
             product_id,
+            recommendation_id,
             event_type,
             source_page,
+            video_id,
+            category_name,
+            brand,
             target_url,
             metadata_json
         )
         VALUES (
             #{userId},
             #{productId},
+            #{recommendationId},
             #{eventType},
             #{sourcePage},
+            #{videoId},
+            #{categoryName},
+            #{brand},
             #{targetUrl},
             #{metadataJson}
         )
@@ -43,8 +55,12 @@
             event_id,
             user_id,
             product_id,
+            recommendation_id,
             event_type,
             source_page,
+            video_id,
+            category_name,
+            brand,
             target_url,
             metadata_json,
             created_at

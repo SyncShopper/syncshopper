@@ -3,6 +3,7 @@ console.log("[SyncShopper] content script loaded");
 const DEFAULT_BACKEND_BASE_URL = "http://localhost:8080";
 const DEFAULT_FRONTEND_BASE_URL = "http://localhost:5173";
 const DEFAULT_TOAST_DURATION_MS = 3000;
+const EXTENSION_RESULT_SOURCE_PAGE = "EXTENSION_RESULT_PANEL";
 const DEFAULT_ANALYSIS_PROGRESS_MESSAGE = "AI 분석 준비중...";
 const ANALYSIS_PROGRESS_MESSAGES = [
   "이미지 속 상품을 탐지중...",
@@ -625,7 +626,7 @@ function renderResultForPanel(result) {
   fragment.appendChild(createRecaptureButton());
   fragment.appendChild(createNaverSearchQueryBlock(analysis));
 
-  fragment.appendChild(createProductResultsBlock(products));
+  fragment.appendChild(createProductResultsBlock(analysis, products));
   return fragment;
 }
 
@@ -700,11 +701,11 @@ function createNaverSearchQueryBlock(analysis) {
 
     try {
       const products = await requestCommerceTop3Products(trimmedQuery);
-      updateProductResults(products);
+      updateProductResults(products, createSearchAnalysisPatch(trimmedQuery));
       showToast("네이버 검색결과를 업데이트했습니다.", "success");
     } catch (error) {
       console.error("[SyncShopper] commerce search failed", error);
-      updateProductResults([]);
+      updateProductResults([], createSearchAnalysisPatch(trimmedQuery));
       showToast(error.message || "네이버 검색에 실패했습니다.", "error");
     } finally {
       searchButton.disabled = false;
@@ -728,7 +729,7 @@ function createNaverSearchQueryBlock(analysis) {
   return block;
 }
 
-function createProductResultsBlock(products) {
+function createProductResultsBlock(analysis, products) {
   const productBlock = document.createElement("section");
   productBlock.className = "syncshopper-product-results";
 
@@ -738,10 +739,11 @@ function createProductResultsBlock(products) {
 
   const productList = document.createElement("div");
   productList.id = "syncshopper-product-list";
+  productList.syncShopperAnalysis = analysis;
 
   productBlock.appendChild(productLabel);
   productBlock.appendChild(productList);
-  renderProductList(productList, products);
+  renderProductList(productList, products, analysis);
 
   return productBlock;
 }
@@ -756,17 +758,19 @@ function setProductResultsLoading() {
   productList.replaceChildren(createPanelMessage("네이버 검색 중..."));
 }
 
-function updateProductResults(products) {
+function updateProductResults(products, analysisPatch = null) {
   const productList = document.getElementById("syncshopper-product-list");
 
   if (!productList) {
     return;
   }
 
-  renderProductList(productList, products);
+  const analysis = mergeAnalysisContext(productList.syncShopperAnalysis || {}, analysisPatch);
+  productList.syncShopperAnalysis = analysis;
+  renderProductList(productList, products, analysis);
 }
 
-function renderProductList(productList, products) {
+function renderProductList(productList, products, analysis) {
   productList.replaceChildren();
 
   if (!Array.isArray(products) || products.length === 0) {
@@ -774,14 +778,18 @@ function renderProductList(productList, products) {
     return;
   }
 
-  products.forEach((product) => {
-    productList.appendChild(createProductCard(product));
+  products.forEach((product, index) => {
+    productList.appendChild(createProductCard(product, analysis, index + 1));
   });
 }
 
-function createProductCard(product) {
+function createProductCard(product, analysis, rank) {
   const card = document.createElement("article");
   card.className = "syncshopper-product-card";
+  card.dataset.productId = product.productId || "";
+  card.addEventListener("click", () => {
+    logExtensionProductEvent("PRODUCT_CLICK", analysis, product, rank, null);
+  });
 
   const image = document.createElement("img");
   image.className = "syncshopper-product-image";
@@ -813,6 +821,16 @@ function createProductCard(product) {
   link.href = product.affiliateUrl || "#";
   link.target = "_blank";
   link.rel = "noopener noreferrer";
+  link.addEventListener("click", (event) => {
+    event.stopPropagation();
+
+    if (!product.affiliateUrl) {
+      event.preventDefault();
+      return;
+    }
+
+    logExtensionProductEvent("AFFILIATE_CLICK", analysis, product, rank, product.affiliateUrl);
+  });
 
   if (!product.affiliateUrl) {
     link.removeAttribute("href");
@@ -832,6 +850,78 @@ function createProductCard(product) {
   card.appendChild(details);
 
   return card;
+}
+
+function createSearchAnalysisPatch(query) {
+  return {
+    commerceQuery: {
+      primary_query: query,
+      primaryQuery: query
+    }
+  };
+}
+
+function mergeAnalysisContext(baseAnalysis, analysisPatch) {
+  if (!analysisPatch) {
+    return baseAnalysis;
+  }
+
+  return {
+    ...baseAnalysis,
+    ...analysisPatch,
+    commerceQuery: {
+      ...(baseAnalysis.commerceQuery || {}),
+      ...(analysisPatch.commerceQuery || {})
+    }
+  };
+}
+
+function logExtensionProductEvent(eventType, analysis, product, rank, targetUrl) {
+  const eventAnalysis = analysis || {};
+  const productId = toPositiveNumber(product.productId);
+
+  if (!productId) {
+    console.warn("[SyncShopper] user event skipped. productId is missing");
+    return;
+  }
+
+  logUserEvent({
+    eventType,
+    productId,
+    recommendationId: null,
+    sourcePage: EXTENSION_RESULT_SOURCE_PAGE,
+    videoId: eventAnalysis.videoId || null,
+    categoryName: firstDefined(product.categoryName, eventAnalysis.categoryName, eventAnalysis.detection?.categoryName),
+    brand: firstDefined(product.brand, eventAnalysis.brand, eventAnalysis.detection?.brand),
+    targetUrl: eventType === "AFFILIATE_CLICK" ? targetUrl : null,
+    metadataJson: buildExtensionEventMetadata(eventAnalysis, product, rank)
+  });
+}
+
+function buildExtensionEventMetadata(analysis, product, rank) {
+  const detection = analysis.detection || {};
+  const commerceQuery = analysis.commerceQuery || {};
+
+  return {
+    rank,
+    query: firstDefined(commerceQuery.primaryQuery, commerceQuery.primary_query),
+    fallbackQueries: firstDefined(commerceQuery.fallbackQueries, commerceQuery.fallback_queries, []),
+    detectionId: analysis.detectionId || null,
+    confidence: firstDefined(detection.confidence, analysis.confidence),
+    queryConfidence: firstDefined(commerceQuery.queryConfidence, commerceQuery.query_confidence),
+    mallName: product.mallName || null,
+    source: product.source || null,
+    externalProductId: product.externalProductId || null
+  };
+}
+
+function toPositiveNumber(value) {
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) && numericValue > 0 ? numericValue : null;
+}
+
+function firstDefined(...values) {
+  return values.find((value) => value !== null && value !== undefined) ?? null;
 }
 
 function formatProductPrice(price) {
@@ -886,6 +976,57 @@ function getExtensionSettings() {
 async function isLoggedIn() {
   const { accessToken } = await getExtensionSettings();
   return Boolean(accessToken);
+}
+
+async function logUserEvent(eventPayload) {
+  try {
+    const { backendBaseUrl, accessToken } = await getExtensionSettings();
+
+    if (!backendBaseUrl || !accessToken) {
+      console.warn("[SyncShopper] user event log skipped. Missing backendBaseUrl or accessToken");
+      return;
+    }
+
+    const requestUrl = `${backendBaseUrl.replace(/\/$/, "")}/api/user-events`;
+    const response = await requestUserEventLog({
+      requestUrl,
+      accessToken,
+      requestBody: eventPayload
+    });
+
+    if (!response.success) {
+      console.warn("[SyncShopper] user event log failed", response.status, response.errorMessage);
+      return;
+    }
+
+    console.log("[SyncShopper] user event logged", response.result);
+  } catch (error) {
+    console.warn("[SyncShopper] user event log error", error);
+  }
+}
+
+function requestUserEventLog({ requestUrl, accessToken, requestBody }) {
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage(
+      {
+        type: "SYNC_SHOPPER_LOG_USER_EVENT",
+        requestUrl,
+        accessToken,
+        requestBody
+      },
+      (response) => {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+          return;
+        }
+
+        resolve(response || {
+          success: false,
+          errorMessage: "No response from background service worker"
+        });
+      }
+    );
+  });
 }
 
 function showLoginPanel(onLoginSuccess) {
