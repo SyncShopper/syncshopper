@@ -1,4 +1,6 @@
 import math
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
 from typing import Any
 
 from app.core.config import settings
@@ -16,6 +18,13 @@ from app.services.scoring.category_rules import NAVER_SEARCH_SOURCES
 from app.services.split_frame_analysis_service import apply_identification_to_frame, identify_from_search
 
 
+@dataclass(frozen=True)
+class _NaverSearchTask:
+    source: str
+    query: str
+    display: int
+
+
 def _naver_search_node(state: ShoppingAnalysisState) -> dict[str, Any]:
     request = state["request"]
     source_queries = state.get("source_queries") or _query_candidates_by_source(state["query"], state["frame_analysis"])
@@ -25,32 +34,44 @@ def _naver_search_node(state: ShoppingAnalysisState) -> dict[str, Any]:
     active_sources = [source for source in NAVER_SEARCH_SOURCES if source_queries.get(source)]
     per_source_limit = max(3, math.ceil(limit / max(1, len(active_sources))))
 
-    candidates_by_key: dict[str, ProductCandidate] = {}
-    source_counts = {source: 0 for source in NAVER_SEARCH_SOURCES}
+    search_tasks: list[_NaverSearchTask] = []
     for source in active_sources:
         queries = source_queries.get(source) or []
         per_query_display = max(2, min(settings.naver_shopping_display, math.ceil(per_source_limit / len(queries))))
 
         for query in queries:
-            if source_counts[source] >= per_source_limit:
+            search_tasks.append(_NaverSearchTask(source=source, query=query, display=per_query_display))
+
+    task_results = _run_naver_search_tasks(search_tasks)
+
+    candidates_by_key: dict[str, ProductCandidate] = {}
+    source_counts = {source: 0 for source in NAVER_SEARCH_SOURCES}
+    for task in search_tasks:
+        if len(candidates_by_key) >= limit:
+            break
+
+        if source_counts[task.source] >= per_source_limit:
+            continue
+
+        for candidate in task_results.get(task, []):
+            if len(candidates_by_key) >= limit:
                 break
 
-            for candidate in search_naver_source(source, query, display=per_query_display):
-                if source_counts[source] >= per_source_limit:
-                    break
+            if source_counts[task.source] >= per_source_limit:
+                break
 
-                enriched_candidate = _copy_candidate(
-                    candidate,
-                    product_type=candidate.product_type or source,
-                    source_query=candidate.source_query or query,
-                    query_type=candidate.query_type or source.replace("NAVER_", ""),
-                )
-                key = _candidate_key(enriched_candidate)
-                if key in candidates_by_key:
-                    continue
+            enriched_candidate = _copy_candidate(
+                candidate,
+                product_type=candidate.product_type or task.source,
+                source_query=candidate.source_query or task.query,
+                query_type=candidate.query_type or task.source.replace("NAVER_", ""),
+            )
+            key = _candidate_key(enriched_candidate)
+            if key in candidates_by_key:
+                continue
 
-                candidates_by_key[key] = enriched_candidate
-                source_counts[source] += 1
+            candidates_by_key[key] = enriched_candidate
+            source_counts[task.source] += 1
 
     candidates = list(candidates_by_key.values())[:limit]
 
@@ -59,6 +80,35 @@ def _naver_search_node(state: ShoppingAnalysisState) -> dict[str, Any]:
         "tried_queries": tried_queries,
         "source_counts": _source_counts(candidates, source_counts),
     }
+
+
+def _run_naver_search_tasks(search_tasks: list[_NaverSearchTask]) -> dict[_NaverSearchTask, list[ProductCandidate]]:
+    if not search_tasks:
+        return {}
+
+    max_workers = max(1, settings.naver_search_max_workers)
+    results: dict[_NaverSearchTask, list[ProductCandidate]] = {}
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {
+            task: executor.submit(search_naver_source, task.source, task.query, display=task.display)
+            for task in search_tasks
+        }
+
+        for task, future in futures.items():
+            try:
+                results[task] = future.result()
+            except Exception as exc:
+                results[task] = []
+                print(
+                    "\n[SyncShopper Naver Search] "
+                    f"failed source={task.source} query='{task.query}' "
+                    f"error_type={exc.__class__.__name__} message={str(exc)}",
+                    flush=True,
+                )
+
+    return results
+
 
 def _google_search_node(state: ShoppingAnalysisState) -> dict[str, Any]:
     request = state["request"]
@@ -112,6 +162,7 @@ def _google_search_node(state: ShoppingAnalysisState) -> dict[str, Any]:
         "google_source_counts": {GEMINI_GROUNDED_SEARCH_SOURCE: len(gemini_candidates)},
     }
 
+
 def _gemini_candidate_to_google_result(candidate: ProductCandidate) -> GoogleSearchResult:
     return GoogleSearchResult(
         title=candidate.title,
@@ -122,6 +173,7 @@ def _gemini_candidate_to_google_result(candidate: ProductCandidate) -> GoogleSea
         source_query=candidate.source_query,
     )
 
+
 def _display_link(url: str | None) -> str | None:
     if not url:
         return None
@@ -130,6 +182,7 @@ def _display_link(url: str | None) -> str | None:
 
     parsed = urlparse(url)
     return parsed.netloc or None
+
 
 def _search_identifier_node(state: ShoppingAnalysisState) -> dict[str, Any]:
     identification = identify_from_search(
