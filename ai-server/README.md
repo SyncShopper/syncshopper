@@ -42,6 +42,7 @@ BACKEND_COMMERCE_SEARCH_PATH=/api/commerce/search
 NAVER_SHOPPING_PROVIDER=backend
 NAVER_SHOPPING_DISPLAY=30
 NAVER_SHOPPING_SORT=sim
+AI_NAVER_SEARCH_MAX_WORKERS=5
 GEMINI_API_KEY=YOUR_GEMINI_API_KEY
 GEMINI_SEARCH_MODEL=gemini-3.5-flash
 GEMINI_SEARCH_ENDPOINT=https://generativelanguage.googleapis.com/v1beta/interactions
@@ -76,6 +77,8 @@ same `ProductCandidate` list as Naver before filtering and reranking.
 frame_analyzer
 -> query_generator
 -> naver_search
+-> google_search
+-> search_identifier
 -> text_filter
 -> visual_reranker
 -> result_judge
@@ -83,6 +86,12 @@ frame_analyzer
 ```
 
 When `result_judge` decides the candidates are weak and retries remain, the graph runs `retry_query_generator` and then enters `naver_search` again. `naver_search` calls the Spring Boot backend commerce API by default, so Naver API credentials stay in the backend service.
+
+Performance notes:
+
+- OCR and visual feature analysis run in parallel in the `frame_analyzer` node.
+- Naver multi-source searches run concurrently with `AI_NAVER_SEARCH_MAX_WORKERS`.
+- LangGraph node logs include `elapsed_ms` for basic performance debugging.
 
 `POST /api/ai/generate-commerce-query` remains available for compatibility and direct query-generation debugging.
 

@@ -36,6 +36,17 @@ def _env_bool(name: str, default: bool) -> bool:
     return value.strip().strip('"').strip("'").lower() in {"1", "true", "yes", "y", "on"}
 
 
+def _env_int(name: str, default: int) -> int:
+    value = os.getenv(name)
+    if value is None or not value.strip():
+        return default
+
+    try:
+        return int(value.strip().strip('"').strip("'"))
+    except ValueError:
+        return default
+
+
 @dataclass
 class Settings:
     ai_detection_provider: str = _env_str("AI_DETECTION_PROVIDER", "mock")
@@ -86,6 +97,7 @@ class Settings:
     naver_shopping_provider: str = _env_str("NAVER_SHOPPING_PROVIDER", "backend")
     naver_shopping_display: int = int(os.getenv("NAVER_SHOPPING_DISPLAY", "30"))
     naver_shopping_sort: str = os.getenv("NAVER_SHOPPING_SORT", "sim")
+    naver_search_max_workers: int = _env_int("AI_NAVER_SEARCH_MAX_WORKERS", 5)
     google_custom_search_provider: str = _env_str("GOOGLE_CUSTOM_SEARCH_PROVIDER", "google")
     google_custom_search_api_key: str | None = _env_optional_str(
         "GOOGLE_CSE_API_KEY",

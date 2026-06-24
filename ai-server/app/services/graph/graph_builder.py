@@ -1,3 +1,4 @@
+import time
 from typing import Any, Callable
 
 from langgraph.graph import END, START, StateGraph
@@ -5,12 +6,11 @@ from langgraph.graph import END, START, StateGraph
 from app.schemas.analysis_graph_schema import ShoppingAnalysisRequest, ShoppingAnalysisResponse
 from app.services.graph.debug import _print_graph_debug, _print_graph_error
 from app.services.graph.nodes.filter_node import _text_filter_node
+from app.services.graph.nodes.frame_node import _frame_analyzer_node
 from app.services.graph.nodes.judge_node import _final_formatter_node, _result_judge_node
-from app.services.graph.nodes.ocr_node import _ocr_analyzer_node
 from app.services.graph.nodes.query_node import _query_generator_node, _retry_query_generator_node
 from app.services.graph.nodes.rerank_node import _visual_reranker_node
 from app.services.graph.nodes.search_node import _google_search_node, _naver_search_node, _search_identifier_node
-from app.services.graph.nodes.visual_node import _frame_synthesizer_node, _visual_feature_analyzer_node
 from app.services.graph.state import ShoppingAnalysisState
 
 
@@ -22,12 +22,15 @@ def analyze_shopping(request: ShoppingAnalysisRequest) -> ShoppingAnalysisRespon
         "best_candidates": [],
     }
     _print_graph_debug("START", {"request": request})
+    started_at = time.perf_counter()
     try:
         result = _analysis_graph.invoke(initial_state)
         response = result["response"]
+        _print_total_elapsed("END", started_at)
         _print_graph_debug("END", {"response": response})
         return response
     except Exception as exc:
+        _print_total_elapsed("FAILED", started_at)
         _print_graph_error("FAILED", exc)
         raise
 
@@ -53,9 +56,7 @@ def _route_after_judge(state: ShoppingAnalysisState) -> str:
 
 def _build_graph():
     workflow = StateGraph(ShoppingAnalysisState)
-    workflow.add_node("ocr_analyzer", _with_node_logging("ocr_analyzer", _ocr_analyzer_node))
-    workflow.add_node("visual_feature_analyzer", _with_node_logging("visual_feature_analyzer", _visual_feature_analyzer_node))
-    workflow.add_node("frame_synthesizer", _with_node_logging("frame_synthesizer", _frame_synthesizer_node))
+    workflow.add_node("frame_analyzer", _with_node_logging("frame_analyzer", _frame_analyzer_node))
     workflow.add_node("query_generator", _with_node_logging("query_generator", _query_generator_node))
     workflow.add_node("naver_search", _with_node_logging("naver_search", _naver_search_node))
     workflow.add_node("google_search", _with_node_logging("google_search", _google_search_node))
@@ -66,10 +67,8 @@ def _build_graph():
     workflow.add_node("retry_query_generator", _with_node_logging("retry_query_generator", _retry_query_generator_node))
     workflow.add_node("final_formatter", _with_node_logging("final_formatter", _final_formatter_node))
 
-    workflow.add_edge(START, "ocr_analyzer")
-    workflow.add_edge("ocr_analyzer", "visual_feature_analyzer")
-    workflow.add_edge("visual_feature_analyzer", "frame_synthesizer")
-    workflow.add_edge("frame_synthesizer", "query_generator")
+    workflow.add_edge(START, "frame_analyzer")
+    workflow.add_edge("frame_analyzer", "query_generator")
     workflow.add_edge("query_generator", "naver_search")
     workflow.add_edge("naver_search", "google_search")
     workflow.add_edge("google_search", "search_identifier")
@@ -95,15 +94,36 @@ def _with_node_logging(
     node_func: Callable[[ShoppingAnalysisState], dict[str, Any]],
 ) -> Callable[[ShoppingAnalysisState], dict[str, Any]]:
     def wrapped_node(state: ShoppingAnalysisState) -> dict[str, Any]:
+        started_at = time.perf_counter()
         try:
             result = node_func(state)
+            elapsed_ms = int((time.perf_counter() - started_at) * 1000)
+            print(
+                f"\n[SyncShopper LangGraph] {node_name} completed elapsed_ms={elapsed_ms}",
+                flush=True,
+            )
             _print_graph_debug(node_name, result)
             return result
         except Exception as exc:
+            elapsed_ms = int((time.perf_counter() - started_at) * 1000)
+            print(
+                f"\n[SyncShopper LangGraph] {node_name} failed elapsed_ms={elapsed_ms}",
+                flush=True,
+            )
             _print_graph_error(node_name, exc)
             raise
 
     return wrapped_node
+
+
+def _print_total_elapsed(label: str, started_at: float) -> None:
+    elapsed_sec = time.perf_counter() - started_at
+    elapsed_ms = int(elapsed_sec * 1000)
+    print(
+        "\n[SyncShopper LangGraph] "
+        f"{label} total_elapsed_ms={elapsed_ms} total_elapsed_sec={elapsed_sec:.3f}",
+        flush=True,
+    )
 
 
 
