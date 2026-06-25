@@ -12,11 +12,11 @@ from app.schemas.analysis_graph_schema import (
 )
 from app.schemas.detection_schema import AnalyzeFrameResponse
 from app.services.gemini_client import call_chat_completion, extract_json_object
-from app.services.graph.candidate_utils import _is_recommendable_product
+from app.services.graph.candidate_utils import _copy_candidate, _is_recommendable_product
 from app.services.graph.debug import _model_to_dict, _print_graph_debug
 from app.services.graph.state import ShoppingAnalysisState
 from app.services.prompts.judge_prompt import build_candidate_judge_messages
-from app.services.scoring.category_rules import _clamp
+from app.services.scoring.category_rules import _clamp, _infer_category_group
 from app.services.split_frame_analysis_service import apply_identification_to_frame
 
 
@@ -60,6 +60,64 @@ def _candidate_judge_node(state: ShoppingAnalysisState) -> dict[str, Any]:
     return {
         "search_identification": identification,
         "frame_analysis": refined_frame_analysis,
+        "quality": quality,
+    }
+
+
+def _fast_result_judge_node(state: ShoppingAnalysisState) -> dict[str, Any]:
+    frame_analysis = state["frame_analysis"]
+    candidates = state.get("filtered_candidates") or []
+    scored_candidates = [
+        _score_fast_candidate(frame_analysis, candidate)
+        for candidate in candidates
+    ]
+    best_candidates = sorted(scored_candidates, key=lambda item: item.final_score, reverse=True)[
+        :state["request"].max_candidates
+    ]
+    scores = [candidate.final_score for candidate in best_candidates]
+    top_score = scores[0] if scores else 0.0
+    top_three_scores = scores[:3]
+    top_three_average = (
+        sum(top_three_scores) / len(top_three_scores)
+        if top_three_scores
+        else 0.0
+    )
+    strong_count = sum(
+        1
+        for candidate in best_candidates[:5]
+        if _is_fast_strong_match(frame_analysis, candidate)
+    )
+    similar_count = sum(
+        1
+        for candidate in best_candidates
+        if candidate.final_score >= 0.50 or candidate.text_score >= 0.50
+    )
+    is_good = strong_count >= 2 and top_score >= 0.82 and top_three_average >= 0.76
+    quality = ResultQuality(
+        is_good=is_good,
+        score=_clamp(top_three_average),
+        enough_similar_count=similar_count,
+        reason=(
+            "Fast local judge found conservative exact-match candidates from text/source/category/image signals."
+            if is_good
+            else "Fast local judge found similar candidates only; exact-match evidence was not conservative enough."
+        ),
+    )
+
+    _print_graph_debug("fast_result_judge.local", {
+        "strong_count": strong_count,
+        "similar_count": similar_count,
+        "top_score": top_score,
+        "top_three_average": top_three_average,
+        "quality": quality,
+    })
+
+    return {
+        "search_identification": _fallback_search_identification({
+            **state,
+            "best_candidates": best_candidates,
+        }),
+        "best_candidates": best_candidates,
         "quality": quality,
     }
 
@@ -142,6 +200,52 @@ def _fallback_result_judge(state: ShoppingAnalysisState) -> ResultQuality:
             if is_good
             else "Local judge did not find enough strict brand/visual matches."
         ),
+    )
+
+
+def _score_fast_candidate(
+    frame_analysis: AnalyzeFrameResponse,
+    candidate: ProductCandidate,
+) -> ProductCandidate:
+    target_group = _infer_category_group(_join_text([
+        frame_analysis.target_name,
+        frame_analysis.category_name,
+        " ".join(frame_analysis.key_features or []),
+    ]).lower())
+    candidate_group = _infer_category_group(_candidate_identity_text(candidate))
+    source_bonus = 0.04 if candidate.product_type in {"NAVER_SHOPPING", "GEMINI_GROUNDED_SEARCH"} else 0.0
+    image_bonus = 0.03 if candidate.image or candidate.thumbnail else 0.0
+    category_bonus = 0.0
+    if target_group and candidate_group:
+        category_bonus = 0.08 if target_group == candidate_group else -0.15
+
+    final_score = _clamp(candidate.text_score + source_bonus + image_bonus + category_bonus)
+    return _copy_candidate(
+        candidate,
+        visual_score=0.0,
+        final_score=final_score,
+        visual_reason="fast mode skipped visual reranker; local score uses text/source/category/image signals",
+    )
+
+
+def _is_fast_strong_match(
+    frame_analysis: AnalyzeFrameResponse,
+    candidate: ProductCandidate,
+) -> bool:
+    target_group = _infer_category_group(_join_text([
+        frame_analysis.target_name,
+        frame_analysis.category_name,
+        " ".join(frame_analysis.key_features or []),
+    ]).lower())
+    candidate_group = _infer_category_group(_candidate_identity_text(candidate))
+    if target_group and candidate_group and target_group != candidate_group:
+        return False
+
+    return (
+        _is_recommendable_product(candidate)
+        and bool(candidate.image or candidate.thumbnail)
+        and candidate.text_score >= 0.72
+        and candidate.final_score >= 0.82
     )
 
 

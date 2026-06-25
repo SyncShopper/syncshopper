@@ -81,6 +81,15 @@ def _naver_search_node(state: ShoppingAnalysisState) -> dict[str, Any]:
     }
 
 
+def _naver_search_branch_node(state: ShoppingAnalysisState) -> dict[str, Any]:
+    result = _naver_search_node(state)
+    return {
+        "naver_search_candidates": result.get("search_candidates") or [],
+        "tried_queries": result.get("tried_queries") or [],
+        "naver_source_counts": result.get("source_counts") or {},
+    }
+
+
 def _run_naver_search_tasks(search_tasks: list[_NaverSearchTask]) -> dict[_NaverSearchTask, list[ProductCandidate]]:
     if not search_tasks:
         return {}
@@ -112,7 +121,8 @@ def _run_naver_search_tasks(search_tasks: list[_NaverSearchTask]) -> dict[_Naver
 def _google_search_node(state: ShoppingAnalysisState) -> dict[str, Any]:
     existing_candidates = state.get("search_candidates") or []
     request = state["request"]
-    queries = _select_gemini_queries(_google_query_candidates(state))
+    fast_mode = request.search_mode == "fast"
+    queries = _select_gemini_queries(_google_query_candidates(state), fast_mode=fast_mode)
     limit = _gemini_candidate_limit(request.max_candidates)
     if not queries:
         return {
@@ -144,7 +154,7 @@ def _google_search_node(state: ShoppingAnalysisState) -> dict[str, Any]:
     }
     gemini_candidates: list[ProductCandidate] = []
     results_by_key: dict[str, GoogleSearchResult] = {}
-    query_results = _run_gemini_search_queries(queries, display=per_query_display)
+    query_results = _run_gemini_search_queries(queries, display=per_query_display, fast_mode=fast_mode)
 
     for query in queries:
         if len(gemini_candidates) >= limit:
@@ -178,16 +188,56 @@ def _google_search_node(state: ShoppingAnalysisState) -> dict[str, Any]:
     }
 
 
-def _select_gemini_queries(queries: list[str]) -> list[str]:
+def _google_search_branch_node(state: ShoppingAnalysisState) -> dict[str, Any]:
+    result = _google_search_node({**state, "search_candidates": [], "source_counts": {}})
+    return {
+        "google_search_candidates": result.get("search_candidates") or [],
+        "google_search_results": result.get("google_search_results") or [],
+        "google_source_counts": result.get("google_source_counts") or {},
+    }
+
+
+def _merge_search_results_node(state: ShoppingAnalysisState) -> dict[str, Any]:
+    candidates_by_key: dict[str, ProductCandidate] = {}
+    for candidate in [
+        *(state.get("naver_search_candidates") or []),
+        *(state.get("google_search_candidates") or []),
+    ]:
+        key = _candidate_key(candidate)
+        if key not in candidates_by_key:
+            candidates_by_key[key] = candidate
+
+    candidates = list(candidates_by_key.values())[:state["request"].max_candidates]
+    fallback_counts = {
+        **(state.get("naver_source_counts") or {}),
+        **(state.get("google_source_counts") or {}),
+    }
+
+    return {
+        "search_candidates": candidates,
+        "source_counts": _source_counts(candidates, fallback_counts),
+    }
+
+
+def _select_gemini_queries(queries: list[str], *, fast_mode: bool = False) -> list[str]:
     max_queries = max(1, settings.gemini_search_max_queries)
+    if fast_mode:
+        max_queries = min(max_queries, 2)
     return queries[:max_queries]
 
 
-def _run_gemini_search_queries(queries: list[str], *, display: int) -> dict[str, list[ProductCandidate]]:
+def _run_gemini_search_queries(
+    queries: list[str],
+    *,
+    display: int,
+    fast_mode: bool = False,
+) -> dict[str, list[ProductCandidate]]:
     if not queries:
         return {}
 
     max_workers = max(1, min(len(queries), settings.gemini_search_max_workers))
+    if fast_mode:
+        max_workers = min(max_workers, 2)
     results: dict[str, list[ProductCandidate]] = {}
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:

@@ -314,6 +314,78 @@
   background: rgba(240, 253, 244, 0.16);
 }
 
+.syncshopper-result-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.syncshopper-result-actions .syncshopper-recapture-button {
+  margin-top: 0;
+}
+
+.syncshopper-search-mode-choice {
+  display: grid;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.syncshopper-search-mode-title {
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.syncshopper-search-mode-buttons {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.syncshopper-search-mode-button {
+  min-height: 38px;
+  padding: 9px 8px;
+  border: 1px solid rgba(187, 247, 208, 0.5);
+  border-radius: 8px;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+}
+
+.syncshopper-search-mode-button-fast {
+  background: #16a34a;
+}
+
+.syncshopper-search-mode-button-fast:hover,
+.syncshopper-search-mode-button-fast:focus-visible {
+  background: #22c55e;
+  border-color: rgba(220, 252, 231, 0.95);
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.28);
+  transform: translateY(-1px);
+}
+
+.syncshopper-search-mode-button-precise {
+  background: rgba(15, 23, 42, 0.85);
+}
+
+.syncshopper-search-mode-button-precise:hover,
+.syncshopper-search-mode-button-precise:focus-visible {
+  background: #2563eb;
+  border-color: rgba(191, 219, 254, 0.95);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.28);
+  transform: translateY(-1px);
+}
+
+.syncshopper-search-mode-note {
+  margin: 0;
+  color: #d1d5db;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .syncshopper-query-block {
   margin-top: 4px;
 }

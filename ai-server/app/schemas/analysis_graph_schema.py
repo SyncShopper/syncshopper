@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Literal, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -8,6 +8,10 @@ from app.schemas.detection_schema import AnalyzeFrameRequest, AnalyzeFrameRespon
 
 
 class ShoppingAnalysisRequest(AnalyzeFrameRequest):
+    search_mode: Literal["fast", "precise"] = Field(
+        "precise",
+        description="Search mode. fast skips visual reranker and candidate judge; precise keeps the existing flow.",
+    )
     max_candidates: int = Field(
         30,
         ge=20,

@@ -81,14 +81,33 @@ same `ProductCandidate` list as Naver before filtering and reranking.
 
 `POST /api/ai/analyze-frame` is the integrated LangGraph API:
 
+The request accepts `search_mode`:
+
+- `precise` (default): preserves the existing flow with visual reranking and candidate judging.
+- `fast`: targets a 10-15 second response by skipping visual reranking and candidate judging. It uses a local conservative quality judge based on candidate text score, source, category consistency, and image availability. Ambiguous matches are returned as `SIMILAR_ONLY`.
+
+Precise flow:
+
 ```text
 frame_analyzer
 -> query_generator
--> naver_search
--> google_search
+-> [naver_search || google_search]
+-> merge_search_results
 -> text_filter
 -> visual_reranker
 -> candidate_judge
+-> final_formatter
+```
+
+Fast flow:
+
+```text
+frame_analyzer
+-> query_generator
+-> [naver_search || google_search]
+-> merge_search_results
+-> text_filter
+-> fast_result_judge
 -> final_formatter
 ```
 
@@ -98,8 +117,9 @@ Performance notes:
 
 - OCR and visual feature analysis run in parallel in the `frame_analyzer` node.
 - Naver multi-source searches run concurrently with `AI_NAVER_SEARCH_MAX_WORKERS`.
+- Naver and Gemini Grounding search branches run in parallel after query generation, then `merge_search_results` de-duplicates candidates before filtering.
 - Naver and Gemini Grounding split the candidate budget with `AI_SEARCH_NAVER_RATIO` (default Naver 60%, Gemini 40%).
-- Gemini Grounding runs at most `GEMINI_SEARCH_MAX_QUERIES` queries in parallel and caps each query with `GEMINI_SEARCH_PER_QUERY_TIMEOUT_SECONDS`.
+- Gemini Grounding runs at most `GEMINI_SEARCH_MAX_QUERIES` queries in parallel and uses `GEMINI_SEARCH_PER_QUERY_TIMEOUT_SECONDS` / `GEMINI_SEARCH_TIMEOUT_SECONDS` for request timeout. Fast search still limits query and worker count, but no longer applies an extra 8-second fast-mode timeout cap.
 - Gemini visual reranking is skipped when text scores are strong enough.
 - Naver and Gemini search results use in-memory TTL cache.
 - Set `AI_SEARCH_CACHE_TTL_SECONDS=0` to disable the in-memory search cache.

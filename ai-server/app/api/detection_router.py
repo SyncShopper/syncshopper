@@ -3,14 +3,13 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 
 from app.schemas.analysis_graph_schema import ProductCandidate, ShoppingAnalysisRequest, ShoppingAnalysisResponse
-from app.schemas.detection_schema import AnalyzeFrameRequest
 
 
 router = APIRouter()
 
 
 @router.post("/analyze-frame")
-def analyze_frame_endpoint(request: AnalyzeFrameRequest):
+def analyze_frame_endpoint(request: ShoppingAnalysisRequest):
     try:
         from app.services.langgraph_analysis_service import analyze_shopping
     except ModuleNotFoundError as exc:
@@ -21,9 +20,7 @@ def analyze_frame_endpoint(request: AnalyzeFrameRequest):
             ) from exc
         raise
 
-    request_data = request.model_dump() if hasattr(request, "model_dump") else request.dict()
-    graph_request = ShoppingAnalysisRequest(**request_data)
-    return _to_integrated_response(analyze_shopping(graph_request))
+    return _to_integrated_response(analyze_shopping(request))
 
 
 def _to_integrated_response(graph_response: ShoppingAnalysisResponse) -> dict[str, Any]:

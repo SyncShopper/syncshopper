@@ -4,6 +4,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -35,4 +36,9 @@ public class DetectionAnalyzeRequest {
 
     @Schema(description = "Subtitle text around the frame", example = "Introducing today's Nike sneakers.")
     private String subtitleText;
+
+    @Pattern(regexp = "fast|precise", message = "Search mode must be fast or precise.")
+    @Builder.Default
+    @Schema(description = "AI search mode. fast skips visual rerank/judge; precise keeps the full flow.", example = "precise")
+    private String searchMode = "precise";
 }
