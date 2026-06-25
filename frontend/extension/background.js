@@ -1,9 +1,7 @@
 console.log("[SyncShopper] background service worker loaded");
 
-// previous: const DEFAULT_BACKEND_BASE_URL = "http://70.12.60.52:8080";
-// previous: const DEFAULT_FRONTEND_BASE_URL = "http://70.12.60.52:5173";
-const DEFAULT_BACKEND_BASE_URL = "http://localhost:8080";
-const DEFAULT_FRONTEND_BASE_URL = "http://localhost:5173";
+const DEFAULT_BACKEND_BASE_URL = "http://70.12.60.52:8080";
+const DEFAULT_FRONTEND_BASE_URL = "http://70.12.60.52:5173";
 const OAUTH_CALLBACK_URL = `${DEFAULT_FRONTEND_BASE_URL}/oauth/callback`;
 
 chrome.runtime.onInstalled.addListener(() => {

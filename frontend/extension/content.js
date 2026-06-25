@@ -1,9 +1,7 @@
 console.log("[SyncShopper] content script loaded");
 
-// previous: const DEFAULT_BACKEND_BASE_URL = "http://70.12.60.52:8080";
-// previous: const DEFAULT_FRONTEND_BASE_URL = "http://70.12.60.52:5173";
-const DEFAULT_BACKEND_BASE_URL = "http://localhost:8080";
-const DEFAULT_FRONTEND_BASE_URL = "http://localhost:5173";
+const DEFAULT_BACKEND_BASE_URL = "http://70.12.60.52:8080";
+const DEFAULT_FRONTEND_BASE_URL = "http://70.12.60.52:5173";
 const SOCIAL_LOGIN_PROVIDERS = {
   google: {
     label: "\uAD6C\uAE00\uB85C \uB85C\uADF8\uC778",
