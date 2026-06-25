@@ -59,7 +59,7 @@ def _query_candidates_by_source(
     visual = _korean_naver_queries([*(query.visual_queries or []), *_visual_queries(frame_analysis)], query_context)
     category = _korean_naver_queries([*(query.category_queries or []), *_category_queries(frame_analysis)], query_context)
 
-    return {
+    source_queries = {
         "NAVER_SHOPPING": _korean_naver_queries([
             *primary,
             *(query.shopping_queries or []),
@@ -92,6 +92,7 @@ def _query_candidates_by_source(
             *primary,
         ], query_context)[:6],
     }
+    return _brand_scope_source_queries(source_queries, frame_analysis)
 
 def _korean_naver_queries(
     values: list[str | None],
@@ -101,6 +102,41 @@ def _korean_naver_queries(
         _koreanize_search_query(value, query_context)
         for value in values
     ])
+
+def _brand_scope_source_queries(
+    source_queries: dict[str, list[str]],
+    frame_analysis: AnalyzeFrameResponse,
+) -> dict[str, list[str]]:
+    brand = frame_analysis.brand or frame_analysis.logo_text
+    if not brand:
+        return source_queries
+
+    tokens = []
+    brand_words = [
+        token.lower()
+        for token in re.findall(r"[0-9A-Za-z\uAC00-\uD7A3]+", brand)
+        if len(token.strip()) >= 2
+    ]
+    normalized_brand = re.sub(r"\s+", " ", brand).strip().lower()
+    if normalized_brand:
+        tokens.append(normalized_brand)
+    compact_brand = re.sub(r"[^0-9A-Za-z\uAC00-\uD7A3]+", "", brand).lower()
+    if compact_brand:
+        tokens.append(compact_brand)
+    if len(brand_words) == 1:
+        tokens.extend(brand_words)
+
+    scoped: dict[str, list[str]] = {}
+    for source, queries in source_queries.items():
+        filtered = []
+        for query in queries:
+            normalized = query.lower()
+            compact_query = re.sub(r"[^0-9A-Za-z\uAC00-\uD7A3]+", "", query).lower()
+            if any(token in normalized or token in compact_query for token in tokens):
+                filtered.append(query)
+        scoped[source] = filtered or queries[:2]
+
+    return scoped
 
 def _commerce_request_from_frame(frame_analysis: AnalyzeFrameResponse) -> CommerceQueryRequest:
     return CommerceQueryRequest(

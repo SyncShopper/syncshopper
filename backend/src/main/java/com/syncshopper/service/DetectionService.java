@@ -344,6 +344,7 @@ public class DetectionService {
         payload.put("videoId", request.getVideoId());
         payload.put("timestampSec", request.getTimestampSec());
         payload.put("subtitleText", request.getSubtitleText());
+        payload.put("searchMode", request.getSearchMode());
         payload.put("imageHash", imageHash);
         return payload;
     }

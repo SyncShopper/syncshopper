@@ -44,14 +44,17 @@ NAVER_SHOPPING_PROVIDER=backend
 NAVER_SHOPPING_DISPLAY=30
 NAVER_SHOPPING_SORT=sim
 AI_NAVER_SEARCH_MAX_WORKERS=5
-AI_SKIP_GEMINI_MIN_CANDIDATES=20
+AI_SEARCH_NAVER_RATIO=0.6
 AI_SKIP_VISUAL_RERANK_TOP_SCORE=0.75
 AI_SKIP_VISUAL_RERANK_AVG_SCORE=0.72
 AI_SEARCH_CACHE_TTL_SECONDS=3600
 AI_SEARCH_CACHE_MAX_SIZE=500
 GEMINI_SEARCH_MODEL=gemini-2.5-flash
+GEMINI_SEARCH_MAX_QUERIES=2
+GEMINI_SEARCH_MAX_WORKERS=2
 GEMINI_SEARCH_ENDPOINT=https://generativelanguage.googleapis.com/v1beta/interactions
-GEMINI_SEARCH_TIMEOUT_SECONDS=20
+GEMINI_SEARCH_TIMEOUT_SECONDS=8
+GEMINI_SEARCH_PER_QUERY_TIMEOUT_SECONDS=8
 AI_ANALYSIS_MAX_RETRIES=0
 ```
 
@@ -78,25 +81,45 @@ same `ProductCandidate` list as Naver before filtering and reranking.
 
 `POST /api/ai/analyze-frame` is the integrated LangGraph API:
 
+The request accepts `search_mode`:
+
+- `precise` (default): preserves the existing flow with visual reranking and candidate judging.
+- `fast`: targets a 10-15 second response by skipping visual reranking and candidate judging. It uses a local conservative quality judge based on candidate text score, source, category consistency, and image availability. Ambiguous matches are returned as `SIMILAR_ONLY`.
+
+Precise flow:
+
 ```text
 frame_analyzer
 -> query_generator
--> naver_search
--> google_search
--> search_identifier
+-> [naver_search || google_search]
+-> merge_search_results
 -> text_filter
 -> visual_reranker
--> result_judge
+-> candidate_judge
 -> final_formatter
 ```
 
-The graph always runs a single search pass. `result_judge` only evaluates quality for the final response and no longer routes back into another Naver/Google search cycle. `naver_search` calls the Spring Boot backend commerce API by default, so Naver API credentials stay in the backend service.
+Fast flow:
+
+```text
+frame_analyzer
+-> query_generator
+-> [naver_search || google_search]
+-> merge_search_results
+-> text_filter
+-> fast_result_judge
+-> final_formatter
+```
+
+The graph always runs a single search pass. `candidate_judge` resolves search-based product identity and evaluates candidate quality for the final response, without routing back into another Naver/Google search cycle. `naver_search` calls the Spring Boot backend commerce API by default, so Naver API credentials stay in the backend service.
 
 Performance notes:
 
 - OCR and visual feature analysis run in parallel in the `frame_analyzer` node.
 - Naver multi-source searches run concurrently with `AI_NAVER_SEARCH_MAX_WORKERS`.
-- Gemini Grounding is skipped when Naver candidates are already enough.
+- Naver and Gemini Grounding search branches run in parallel after query generation, then `merge_search_results` de-duplicates candidates before filtering.
+- Naver and Gemini Grounding split the candidate budget with `AI_SEARCH_NAVER_RATIO` (default Naver 60%, Gemini 40%).
+- Gemini Grounding runs at most `GEMINI_SEARCH_MAX_QUERIES` queries in parallel and uses `GEMINI_SEARCH_PER_QUERY_TIMEOUT_SECONDS` / `GEMINI_SEARCH_TIMEOUT_SECONDS` for request timeout. Fast search still limits query and worker count, but no longer applies an extra 8-second fast-mode timeout cap.
 - Gemini visual reranking is skipped when text scores are strong enough.
 - Naver and Gemini search results use in-memory TTL cache.
 - Set `AI_SEARCH_CACHE_TTL_SECONDS=0` to disable the in-memory search cache.
