@@ -101,6 +101,7 @@ public class FastApiAnalysisClient {
         requestBody.put("timestamp_sec", request.getTimestampSec());
         requestBody.put("image_base64", request.getImageBase64());
         requestBody.put("subtitle_text", request.getSubtitleText());
+        requestBody.put("search_mode", request.getSearchMode() == null ? "precise" : request.getSearchMode());
         return requestBody;
     }
 

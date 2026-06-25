@@ -4,14 +4,14 @@ const DEFAULT_BACKEND_BASE_URL = "http://localhost:8080";
 const DEFAULT_FRONTEND_BASE_URL = "http://localhost:5173";
 const DEFAULT_TOAST_DURATION_MS = 3000;
 const EXTENSION_RESULT_SOURCE_PAGE = "EXTENSION_RESULT_PANEL";
-const DEFAULT_ANALYSIS_PROGRESS_MESSAGE = "AI 분석 준비중...";
+const DEFAULT_ANALYSIS_PROGRESS_MESSAGE = "\u0041\u0049 \uBD84\uC11D\uC744 \uC900\uBE44\uD558\uACE0 \uC788\uC5B4\uC694...";
 const ANALYSIS_PROGRESS_MESSAGES = [
-  "이미지 속 상품을 탐지중...",
-  "쇼핑 검색어를 만드는 중...",
-  "네이버 쇼핑에서 검색중...",
-  "관련 있는 상품만 걸러내는 중...",
-  "유사한 친구 찾는 중...",
-  "추천 결과를 정리중..."
+  "\uC774\uBBF8\uC9C0\uC5D0\uC11C \uC0C1\uD488\uC744 \uCC3E\uACE0 \uC788\uC5B4\uC694...",
+  "\uAC80\uC0C9\uC5B4\uB97C \uB9CC\uB4E4\uACE0 \uC788\uC5B4\uC694...",
+  "\uC1FC\uD551 \uACB0\uACFC\uB97C \uAC80\uC0C9\uD558\uACE0 \uC788\uC5B4\uC694...",
+  "\uAD00\uB828 \uC788\uB294 \uC0C1\uD488\uB9CC \uCD94\uB824\uB0B4\uACE0 \uC788\uC5B4\uC694...",
+  "\uBE44\uC2B7\uD55C \uC0C1\uD488\uC744 \uC815\uB9AC\uD558\uACE0 \uC788\uC5B4\uC694...",
+  "\uCD94\uCC9C \uACB0\uACFC\uB97C \uC900\uBE44\uD558\uACE0 \uC788\uC5B4\uC694..."
 ];
 const ANALYSIS_PROGRESS_STEP_MS = 2400;
 
@@ -28,6 +28,8 @@ let analysisProgressTypingTimer = null;
 let analysisProgressTypingToken = 0;
 let analysisProgressSequenceTimer = null;
 let analysisProgressSequenceIndex = 0;
+let currentCapturedDataUrl = null;
+let currentSearchMode = null;
 
 function createCaptureButton() {
   const existingButton = document.getElementById("syncshopper-capture-button");
@@ -40,13 +42,13 @@ function createCaptureButton() {
   const button = document.createElement("button");
   button.id = "syncshopper-capture-button";
   button.type = "button";
-  button.textContent = "상품 캡쳐";
+  button.textContent = "\uC0C1\uD488 \uCEA1\uCCD0";
 
   button.addEventListener("click", async () => {
     console.log("[SyncShopper] capture button clicked");
 
     if (!prepareVideoForCapture()) {
-      showToast("영상 화면을 찾을 수 없습니다.", "warning");
+      showToast("\uC601\uC0C1 \uD654\uBA74\uC744 \uCC3E\uC744 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.", "warning");
       return;
     }
 
@@ -61,7 +63,7 @@ function createCaptureButton() {
         return;
       }
 
-      showToast("영상 화면을 찾을 수 없습니다.", "warning");
+      showToast("\uC601\uC0C1 \uD654\uBA74\uC744 \uCC3E\uC744 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.", "warning");
     });
   });
 
@@ -88,7 +90,7 @@ function createCaptureLauncher() {
 
   const description = document.createElement("p");
   description.className = "syncshopper-launcher-description";
-  description.textContent = "영상 속 상품을 바로 캡쳐하세요.";
+  description.textContent = "\uC601\uC0C1 \uC18D \uC0C1\uD488\uC744 \uBC14\uB85C \uCEA1\uCCD0\uD558\uC138\uC694.";
 
   const button = createCaptureButton();
 
@@ -216,7 +218,7 @@ function startAreaSelection() {
 
   captureGuide = document.createElement("div");
   captureGuide.id = "syncshopper-capture-guide";
-  captureGuide.textContent = "캡쳐할 상품 영역을 드래그하세요";
+  captureGuide.textContent = "\uCEA1\uCCD0\uD560 \uC0C1\uD488 \uC601\uC5ED\uC744 \uB4DC\uB798\uADF8\uD558\uC138\uC694";
 
   captureOverlay.addEventListener("mousedown", (event) => {
     isDragging = true;
@@ -250,7 +252,7 @@ function startAreaSelection() {
 
     if (rect.width < 30 || rect.height < 30) {
       console.warn("[SyncShopper] selected area is too small");
-      showToast("선택 영역이 너무 작습니다.", "warning");
+      showToast("\uC120\uD0DD \uC601\uC5ED\uC774 \uB108\uBB34 \uC791\uC2B5\uB2C8\uB2E4.", "warning");
       updateCaptureLauncherVisibility();
       return;
     }
@@ -266,19 +268,16 @@ function startAreaSelection() {
 
       previewCroppedImage(croppedDataUrl);
 
-      showToast("캡쳐 영역 선택 완료", "success");
-      showToast("AI 분석 요청 중...", "info");
+      showToast("\uCEA1\uCCD0 \uC601\uC5ED \uC120\uD0DD \uC644\uB8CC", "success");
 
-      const analysisResult = await sendDetectionAnalyzeRequest(croppedDataUrl);
-      updateCapturePanelResult(analysisResult);
     } catch (error) {
       console.error("[SyncShopper] capture process failed", error);
       updateCapturePanelResult({
-        error: error.message || "분석 실패"
+        error: error.message || "\uBD84\uC11D \uC2E4\uD328"
       });
 
       if (!document.getElementById("syncshopper-toast")) {
-        showToast("분석 실패. 다시 시도해주세요.", "error");
+        showToast("\uBD84\uC11D \uC2E4\uD328. \uB2E4\uC2DC \uC2DC\uB3C4\uD574\uC8FC\uC138\uC694.", "error");
       }
     }
   });
@@ -418,7 +417,9 @@ function previewCroppedImage(croppedDataUrl) {
   }
 
   previewImage.src = croppedDataUrl;
-  renderAnalysisProgress(DEFAULT_ANALYSIS_PROGRESS_MESSAGE);
+  currentCapturedDataUrl = croppedDataUrl;
+  currentSearchMode = null;
+  renderSearchModeChoice(croppedDataUrl);
 }
 
 function createCaptureResultPanel() {
@@ -437,8 +438,8 @@ function createCaptureResultPanel() {
   const closeButton = document.createElement("button");
   closeButton.id = "syncshopper-result-close-button";
   closeButton.type = "button";
-  closeButton.textContent = "×";
-  closeButton.setAttribute("aria-label", "Close SyncShopper result panel");
+  closeButton.textContent = "\u00D7";
+  closeButton.setAttribute("aria-label", "SyncShopper \uACB0\uACFC \uD328\uB110 \uB2EB\uAE30");
   closeButton.addEventListener("click", () => {
     stopAnalysisProgressSequence();
     panel.remove();
@@ -446,15 +447,15 @@ function createCaptureResultPanel() {
   });
 
   const previewTitle = document.createElement("h3");
-  previewTitle.textContent = "캡쳐 미리보기";
+  previewTitle.textContent = "\uCEA1\uCCD0 \uBBF8\uB9AC\uBCF4\uAE30";
 
   const previewImage = document.createElement("img");
   previewImage.id = "syncshopper-result-preview";
-  previewImage.alt = "캡쳐 결과";
+  previewImage.alt = "\uCEA1\uCCD0 \uACB0\uACFC";
 
   const resultContent = document.createElement("div");
   resultContent.id = "syncshopper-result-content";
-  resultContent.textContent = "결과를 기다리는 중...";
+  resultContent.textContent = "\uACB0\uACFC\uB97C \uAE30\uB2E4\uB9AC\uB294 \uC911...";
 
   panel.appendChild(closeButton);
   panel.appendChild(title);
@@ -476,6 +477,103 @@ function updateCapturePanelResult(result) {
 
   stopAnalysisProgressSequence();
   resultContent.replaceChildren(renderResultForPanel(result));
+}
+
+function renderSearchModeChoice(croppedDataUrl) {
+  const panel = createCaptureResultPanel();
+  const resultContent = panel.querySelector("#syncshopper-result-content");
+
+  if (!resultContent) {
+    return;
+  }
+
+  stopAnalysisProgressSequence();
+
+  const wrapper = document.createElement("div");
+  wrapper.className = "syncshopper-search-mode-choice";
+
+  const title = document.createElement("div");
+  title.className = "syncshopper-search-mode-title";
+  title.textContent = "\uAC80\uC0C9 \uBC29\uC2DD \uC120\uD0DD";
+
+  const buttonRow = document.createElement("div");
+  buttonRow.className = "syncshopper-search-mode-buttons";
+
+  const note = document.createElement("p");
+  note.className = "syncshopper-search-mode-note";
+  note.textContent = searchModeDescription("default");
+
+  buttonRow.appendChild(createSearchModeButton("\uBE60\uB978 \uAC80\uC0C9", "fast", croppedDataUrl, note));
+  buttonRow.appendChild(createSearchModeButton("\uC815\uBC00 \uAC80\uC0C9", "precise", croppedDataUrl, note));
+
+  wrapper.appendChild(title);
+  wrapper.appendChild(buttonRow);
+  wrapper.appendChild(note);
+  resultContent.replaceChildren(wrapper);
+}
+
+function createSearchModeButton(label, searchMode, croppedDataUrl, noteElement = null) {
+  const button = document.createElement("button");
+  button.className = `syncshopper-search-mode-button syncshopper-search-mode-button-${searchMode}`;
+  button.type = "button";
+  button.textContent = label;
+  button.addEventListener("mouseenter", () => {
+    updateSearchModeDescription(noteElement, searchMode);
+  });
+  button.addEventListener("focus", () => {
+    updateSearchModeDescription(noteElement, searchMode);
+  });
+  button.addEventListener("mouseleave", () => {
+    updateSearchModeDescription(noteElement, "default");
+  });
+  button.addEventListener("blur", () => {
+    updateSearchModeDescription(noteElement, "default");
+  });
+  button.addEventListener("click", () => {
+    startDetectionAnalysis(croppedDataUrl, searchMode);
+  });
+  return button;
+}
+
+function updateSearchModeDescription(noteElement, searchMode) {
+  if (!noteElement) {
+    return;
+  }
+
+  noteElement.textContent = searchModeDescription(searchMode);
+}
+
+function searchModeDescription(searchMode) {
+  if (searchMode === "fast") {
+    return "\uBE60\uB978 \uAC80\uC0C9\uC740 \uC774\uBBF8\uC9C0 \uC7AC\uC815\uB82C\uACFC \uD6C4\uBCF4 \uD310\uC815\uC744 \uAC74\uB108\uB6F0\uACE0 \uAC80\uC0C9 \uACB0\uACFC\uB97C \uBE60\uB974\uAC8C \uBCF4\uC5EC\uC90D\uB2C8\uB2E4.";
+  }
+
+  if (searchMode === "precise") {
+    return "\uC815\uBC00 \uAC80\uC0C9\uC740 \uC774\uBBF8\uC9C0 \uC720\uC0AC\uB3C4 \uC7AC\uC815\uB82C\uACFC \uD6C4\uBCF4 \uD310\uC815\uC744 \uD568\uAED8 \uC218\uD589\uD574 \uB354 \uC2E0\uC911\uD558\uAC8C \uACE0\uB985\uB2C8\uB2E4.";
+  }
+
+  return "\uBC84\uD2BC\uC5D0 \uB9C8\uC6B0\uC2A4\uB97C \uC62C\uB9AC\uBA74 \uAC80\uC0C9 \uBC29\uC2DD\uC758 \uCC28\uC774\uB97C \uBCFC \uC218 \uC788\uC2B5\uB2C8\uB2E4.";
+}
+
+async function startDetectionAnalysis(croppedDataUrl, searchMode) {
+  currentCapturedDataUrl = croppedDataUrl;
+  currentSearchMode = searchMode;
+  showToast(`${searchMode === "fast" ? "\uBE60\uB978 \uAC80\uC0C9" : "\uC815\uBC00 \uAC80\uC0C9"}\uC744 \uC2DC\uC791\uD569\uB2C8\uB2E4.`, "info");
+  renderAnalysisProgress(DEFAULT_ANALYSIS_PROGRESS_MESSAGE);
+
+  try {
+    const analysisResult = await sendDetectionAnalyzeRequest(croppedDataUrl, searchMode);
+    updateCapturePanelResult(analysisResult);
+  } catch (error) {
+    console.error("[SyncShopper] analysis process failed", error);
+    updateCapturePanelResult({
+      error: error.message || "\uBD84\uC11D\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4."
+    });
+
+    if (!document.getElementById("syncshopper-toast")) {
+      showToast("\uBD84\uC11D\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4. \uB2E4\uC2DC \uC2DC\uB3C4\uD574 \uC8FC\uC138\uC694.", "error");
+    }
+  }
 }
 
 function renderAnalysisProgress(message) {
@@ -595,7 +693,7 @@ function renderResultForPanel(result) {
   }
 
   if (result === null || result === undefined) {
-    fragment.appendChild(createPanelMessage("분석 결과가 비어 있습니다."));
+    fragment.appendChild(createPanelMessage("\uBD84\uC11D \uACB0\uACFC\uAC00 \uBE44\uC5B4 \uC788\uC2B5\uB2C8\uB2E4."));
     return fragment;
   }
 
@@ -606,7 +704,7 @@ function renderResultForPanel(result) {
     return fragment;
   }
 
-  const targetName = analysis.detection?.targetName || analysis.targetName || "알 수 없는 상품";
+  const targetName = analysis.detection?.targetName || analysis.targetName || "\uC54C \uC218 \uC5C6\uB294 \uC0C1\uD488";
   const products = Array.isArray(analysis.products) ? analysis.products : [];
 
   const detectionBlock = document.createElement("section");
@@ -614,7 +712,7 @@ function renderResultForPanel(result) {
 
   const detectionLabel = document.createElement("div");
   detectionLabel.className = "syncshopper-section-label";
-  detectionLabel.textContent = "AI 탐지 결과:";
+  detectionLabel.textContent = "AI \uD0D0\uC9C0 \uACB0\uACFC:";
 
   const detectionValue = document.createElement("div");
   detectionValue.className = "syncshopper-detection-target";
@@ -624,7 +722,7 @@ function renderResultForPanel(result) {
   detectionBlock.appendChild(detectionValue);
   detectionBlock.appendChild(createAiDetectionEvidenceBlock(analysis));
   fragment.appendChild(detectionBlock);
-  fragment.appendChild(createRecaptureButton());
+  fragment.appendChild(createResultActionButtons());
   fragment.appendChild(createNaverSearchQueryBlock(analysis));
 
   fragment.appendChild(createProductResultsBlock(analysis, products));
@@ -643,36 +741,36 @@ function createAiDetectionEvidenceBlock(analysis) {
   const ocrText = [
     ...(Array.isArray(ocr.visible_text_candidates) ? ocr.visible_text_candidates : []),
     ...(Array.isArray(ocr.visibleTextCandidates) ? ocr.visibleTextCandidates : [])
-  ].filter(Boolean).slice(0, 4).join(", ") || ocr.raw_text || ocr.rawText || "감지된 텍스트 없음";
+  ].filter(Boolean).slice(0, 4).join(", ") || ocr.raw_text || ocr.rawText || "\uAC10\uC9C0\uB41C \uD14D\uC2A4\uD2B8 \uC5C6\uC74C";
 
   const visualText = [
     visual.product_type || visual.productType,
     visual.color,
     visual.style,
     visual.shape
-  ].filter(Boolean).join(" · ") || "시각 특징 없음";
+  ].filter(Boolean).join(" \u00B7 ") || "\uC2DC\uAC01 \uD2B9\uC9D5 \uC5C6\uC74C";
 
   const featureList = visual.key_features || visual.keyFeatures || [];
   const identificationText = [
     identification.target_name || identification.targetName,
     identification.brand,
     identification.model_name || identification.modelName
-  ].filter(Boolean).join(" · ");
+  ].filter(Boolean).join(" \u00B7 ");
 
   block.appendChild(createAiEvidenceRow("OCR", ocrText));
-  block.appendChild(createAiEvidenceRow("이미지", visualText));
+  block.appendChild(createAiEvidenceRow("\uC774\uBBF8\uC9C0", visualText));
 
   if (Array.isArray(featureList) && featureList.length > 0) {
-    block.appendChild(createAiEvidenceRow("특징", featureList.slice(0, 4).join(", ")));
+    block.appendChild(createAiEvidenceRow("\uD2B9\uC9D5", featureList.slice(0, 4).join(", ")));
   }
 
   if (identificationText) {
-    block.appendChild(createAiEvidenceRow("검색 식별", identificationText));
+    block.appendChild(createAiEvidenceRow("\uAC80\uC0C9 \uC2DD\uBCC4", identificationText));
   }
 
   const evidence = identification.evidence || [];
   if (Array.isArray(evidence) && evidence.length > 0) {
-    block.appendChild(createAiEvidenceRow("근거", evidence.slice(0, 2).join(" / ")));
+    block.appendChild(createAiEvidenceRow("\uADFC\uAC70", evidence.slice(0, 2).join(" / ")));
   } else if (Array.isArray(googleResults) && googleResults.length > 0) {
     const googleText = googleResults
       .slice(0, 2)
@@ -715,7 +813,7 @@ function createRecaptureButton() {
   const button = document.createElement("button");
   button.className = "syncshopper-recapture-button";
   button.type = "button";
-  button.textContent = "다시 캡쳐하기";
+  button.textContent = "\uB2E4\uC2DC \uCEA1\uCCD0\uD558\uAE30";
   button.addEventListener("click", () => {
     const panel = document.getElementById("syncshopper-result-panel");
 
@@ -727,6 +825,36 @@ function createRecaptureButton() {
     startAreaSelection();
   });
 
+  button.textContent = "\uB2E4\uC2DC \uCEA1\uCCD0\uD558\uAE30";
+  return button;
+}
+
+function createResultActionButtons() {
+  const wrapper = document.createElement("div");
+  wrapper.className = "syncshopper-result-actions";
+  wrapper.appendChild(createRecaptureButton());
+
+  const alternateButton = createAlternateSearchModeButton();
+  if (alternateButton) {
+    wrapper.appendChild(alternateButton);
+  }
+
+  return wrapper;
+}
+
+function createAlternateSearchModeButton() {
+  if (!currentCapturedDataUrl || !currentSearchMode) {
+    return null;
+  }
+
+  const nextMode = currentSearchMode === "fast" ? "precise" : "fast";
+  const button = document.createElement("button");
+  button.className = `syncshopper-recapture-button syncshopper-search-mode-button-${nextMode}`;
+  button.type = "button";
+  button.textContent = nextMode === "fast" ? "\uBE60\uB978 \uAC80\uC0C9" : "\uC815\uBC00 \uAC80\uC0C9";
+  button.addEventListener("click", () => {
+    startDetectionAnalysis(currentCapturedDataUrl, nextMode);
+  });
   return button;
 }
 
@@ -739,7 +867,7 @@ function createNaverSearchQueryBlock(analysis) {
   const label = document.createElement("label");
   label.className = "syncshopper-section-label";
   label.setAttribute("for", "syncshopper-naver-search-query");
-  label.textContent = "네이버 검색 쿼리";
+  label.textContent = "\uB124\uC774\uBC84 \uAC80\uC0C9\uC5B4";
 
   const row = document.createElement("div");
   row.className = "syncshopper-query-row";
@@ -749,12 +877,12 @@ function createNaverSearchQueryBlock(analysis) {
   input.className = "syncshopper-query-input";
   input.type = "text";
   input.value = query;
-  input.placeholder = "네이버에서 검색할 키워드";
+  input.placeholder = "\uB124\uC774\uBC84\uC5D0\uC11C \uAC80\uC0C9\uD560 \uD0A4\uC6CC\uB4DC";
 
   const searchButton = document.createElement("button");
   searchButton.className = "syncshopper-query-search-button";
   searchButton.type = "button";
-  searchButton.textContent = "검색";
+  searchButton.textContent = "\uAC80\uC0C9";
 
   async function submitSearch() {
     if (searchButton.disabled) {
@@ -764,26 +892,26 @@ function createNaverSearchQueryBlock(analysis) {
     const trimmedQuery = input.value.trim();
 
     if (!trimmedQuery) {
-      showToast("검색어를 입력해주세요.", "warning");
+      showToast("\uAC80\uC0C9\uC5B4\uB97C \uC785\uB825\uD574 \uC8FC\uC138\uC694.", "warning");
       input.focus();
       return;
     }
 
     searchButton.disabled = true;
-    searchButton.textContent = "검색중";
+    searchButton.textContent = "\uAC80\uC0C9\uC911";
     setProductResultsLoading();
 
     try {
       const products = await requestCommerceTop3Products(trimmedQuery);
       updateProductResults(products, createSearchAnalysisPatch(trimmedQuery));
-      showToast("네이버 검색결과를 업데이트했습니다.", "success");
+      showToast("\uC0C1\uD488\uC744 \uB2E4\uC2DC \uBD88\uB7EC\uC654\uC2B5\uB2C8\uB2E4.", "success");
     } catch (error) {
       console.error("[SyncShopper] commerce search failed", error);
       updateProductResults([], createSearchAnalysisPatch(trimmedQuery));
-      showToast(error.message || "네이버 검색에 실패했습니다.", "error");
+      showToast(error.message || "\uC0C1\uD488 \uAC80\uC0C9\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4.", "error");
     } finally {
       searchButton.disabled = false;
-      searchButton.textContent = "검색";
+      searchButton.textContent = "\uAC80\uC0C9";
     }
   }
 
@@ -809,7 +937,7 @@ function createProductResultsBlock(analysis, products) {
 
   const productLabel = document.createElement("div");
   productLabel.className = "syncshopper-section-label";
-  productLabel.textContent = "네이버 검색결과";
+  productLabel.textContent = "\uCD94\uCC9C \uC0C1\uD488";
 
   const productList = document.createElement("div");
   productList.id = "syncshopper-product-list";
@@ -829,7 +957,7 @@ function setProductResultsLoading() {
     return;
   }
 
-  productList.replaceChildren(createPanelMessage("네이버 검색 중..."));
+  productList.replaceChildren(createPanelMessage("\uC0C1\uD488\uC744 \uBD88\uB7EC\uC624\uB294 \uC911..."));
 }
 
 function updateProductResults(products, analysisPatch = null) {
@@ -848,7 +976,7 @@ function renderProductList(productList, products, analysis) {
   productList.replaceChildren();
 
   if (!Array.isArray(products) || products.length === 0) {
-    productList.appendChild(createPanelMessage("표시할 상품이 없습니다."));
+    productList.appendChild(createPanelMessage("\uD45C\uC2DC\uD560 \uC0C1\uD488\uC774 \uC5C6\uC2B5\uB2C8\uB2E4."));
     return;
   }
 
@@ -867,7 +995,7 @@ function createProductCard(product, analysis, rank) {
 
   const image = document.createElement("img");
   image.className = "syncshopper-product-image";
-  image.alt = product.title || "상품 이미지";
+  image.alt = product.title || "\uC0C1\uD488 \uC774\uBBF8\uC9C0";
   image.loading = "lazy";
 
   if (product.imageUrl) {
@@ -879,11 +1007,11 @@ function createProductCard(product, analysis, rank) {
 
   const title = document.createElement("div");
   title.className = "syncshopper-product-title";
-  title.textContent = product.title || "상품명 없음";
+  title.textContent = product.title || "\uC0C1\uD488\uBA85 \uC5C6\uC74C";
 
   const meta = document.createElement("div");
   meta.className = "syncshopper-product-meta";
-  meta.textContent = [product.mallName, product.brand].filter(Boolean).join(" · ");
+  meta.textContent = [product.mallName, product.brand].filter(Boolean).join(" \u00B7 ");
 
   const price = document.createElement("div");
   price.className = "syncshopper-product-price";
@@ -891,7 +1019,7 @@ function createProductCard(product, analysis, rank) {
 
   const link = document.createElement("a");
   link.className = "syncshopper-product-link";
-  link.textContent = "상품 판매 페이지로 이동";
+  link.textContent = "\uC0C1\uD488 \uD310\uB9E4 \uD398\uC774\uC9C0\uB85C \uC774\uB3D9";
   link.href = product.affiliateUrl || "#";
   link.target = "_blank";
   link.rel = "noopener noreferrer";
@@ -1002,10 +1130,10 @@ function formatProductPrice(price) {
   const numericPrice = Number(price);
 
   if (!Number.isFinite(numericPrice) || numericPrice <= 0) {
-    return "가격 정보 없음";
+    return "\uAC00\uACA9 \uC815\uBCF4 \uC5C6\uC74C";
   }
 
-  return `${new Intl.NumberFormat("ko-KR").format(numericPrice)}원`;
+  return `${new Intl.NumberFormat("ko-KR").format(numericPrice)}\uC6D0`;
 }
 
 function getYouTubeVideoId() {
@@ -1129,8 +1257,8 @@ function showLoginPanel(onLoginSuccess) {
   const closeButton = document.createElement("button");
   closeButton.id = "syncshopper-login-close-button";
   closeButton.type = "button";
-  closeButton.textContent = "×";
-  closeButton.setAttribute("aria-label", "Close SyncShopper login panel");
+  closeButton.textContent = "\u00D7";
+  closeButton.setAttribute("aria-label", "SyncShopper \uB85C\uADF8\uC778 \uD328\uB110 \uB2EB\uAE30");
   closeButton.addEventListener("click", () => {
     pendingLoginSuccessCallback = null;
     panel.remove();
@@ -1138,30 +1266,30 @@ function showLoginPanel(onLoginSuccess) {
   });
 
   const title = document.createElement("h2");
-  title.textContent = "SyncShopper 로그인";
+  title.textContent = "SyncShopper \uB85C\uADF8\uC778";
 
   const description = document.createElement("p");
-  description.textContent = "상품 캡쳐 분석을 사용하려면 먼저 로그인해주세요.";
+  description.textContent = "\uC0C1\uD488 \uBD84\uC11D\uC744 \uC0AC\uC6A9\uD558\uB824\uBA74 \uB85C\uADF8\uC778\uD574 \uC8FC\uC138\uC694.";
 
   const loginIdLabel = document.createElement("label");
   loginIdLabel.setAttribute("for", "syncshopper-login-id");
-  loginIdLabel.textContent = "아이디";
+  loginIdLabel.textContent = "\uC544\uC774\uB514";
 
   const loginIdInput = document.createElement("input");
   loginIdInput.id = "syncshopper-login-id";
   loginIdInput.type = "text";
   loginIdInput.autocomplete = "username";
-  loginIdInput.placeholder = "이메일을 입력하세요";
+  loginIdInput.placeholder = "\uC774\uBA54\uC77C\uC744 \uC785\uB825\uD574 \uC8FC\uC138\uC694";
 
   const passwordLabel = document.createElement("label");
   passwordLabel.setAttribute("for", "syncshopper-login-password");
-  passwordLabel.textContent = "비밀번호";
+  passwordLabel.textContent = "\uBE44\uBC00\uBC88\uD638";
 
   const passwordInput = document.createElement("input");
   passwordInput.id = "syncshopper-login-password";
   passwordInput.type = "password";
   passwordInput.autocomplete = "current-password";
-  passwordInput.placeholder = "비밀번호를 입력하세요";
+  passwordInput.placeholder = "\uBE44\uBC00\uBC88\uD638\uB97C \uC785\uB825\uD574 \uC8FC\uC138\uC694";
 
   const errorMessage = document.createElement("div");
   errorMessage.id = "syncshopper-login-error";
@@ -1169,12 +1297,12 @@ function showLoginPanel(onLoginSuccess) {
   const loginButton = document.createElement("button");
   loginButton.id = "syncshopper-login-submit-button";
   loginButton.type = "button";
-  loginButton.textContent = "로그인";
+  loginButton.textContent = "\uB85C\uADF8\uC778";
 
   const signupButton = document.createElement("button");
   signupButton.id = "syncshopper-signup-button";
   signupButton.type = "button";
-  signupButton.textContent = "회원가입";
+  signupButton.textContent = "\uD68C\uC6D0\uAC00\uC785";
 
   async function submitLogin() {
     const loginId = loginIdInput.value.trim();
@@ -1183,19 +1311,19 @@ function showLoginPanel(onLoginSuccess) {
     errorMessage.textContent = "";
 
     if (!loginId) {
-      errorMessage.textContent = "아이디를 입력해주세요.";
+      errorMessage.textContent = "\uC544\uC774\uB514\uB97C \uC785\uB825\uD574 \uC8FC\uC138\uC694.";
       loginIdInput.focus();
       return;
     }
 
     if (!password) {
-      errorMessage.textContent = "비밀번호를 입력해주세요.";
+      errorMessage.textContent = "\uBE44\uBC00\uBC88\uD638\uB97C \uC785\uB825\uD574 \uC8FC\uC138\uC694.";
       passwordInput.focus();
       return;
     }
 
     loginButton.disabled = true;
-    loginButton.textContent = "로그인 중...";
+    loginButton.textContent = "\uB85C\uADF8\uC778 \uC911...";
 
     try {
       const authResult = await requestLogin(loginId, password);
@@ -1208,7 +1336,7 @@ function showLoginPanel(onLoginSuccess) {
       });
 
       panel.remove();
-      showToast("로그인되었습니다.", "success");
+      showToast("\uB85C\uADF8\uC778\uB418\uC5C8\uC2B5\uB2C8\uB2E4.", "success");
 
       if (typeof pendingLoginSuccessCallback === "function") {
         const callback = pendingLoginSuccessCallback;
@@ -1216,10 +1344,10 @@ function showLoginPanel(onLoginSuccess) {
         callback();
       }
     } catch (error) {
-      errorMessage.textContent = error.message || "로그인에 실패했습니다.";
+      errorMessage.textContent = error.message || "\uB85C\uADF8\uC778\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4.";
     } finally {
       loginButton.disabled = false;
-      loginButton.textContent = "로그인";
+      loginButton.textContent = "\uB85C\uADF8\uC778";
     }
   }
 
@@ -1266,7 +1394,7 @@ function requestLogin(loginId, password) {
         }
 
         if (!response || !response.success) {
-          reject(new Error(response?.errorMessage || "로그인에 실패했습니다."));
+          reject(new Error(response?.errorMessage || "\uB85C\uADF8\uC778\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4."));
           return;
         }
 
@@ -1308,30 +1436,30 @@ function showToast(message, type = "info") {
   }, DEFAULT_TOAST_DURATION_MS);
 }
 
-async function sendDetectionAnalyzeRequest(croppedDataUrl) {
+async function sendDetectionAnalyzeRequest(croppedDataUrl, searchMode = "precise") {
   const videoId = getYouTubeVideoId();
 
   if (!videoId) {
-    showToast("영상 ID를 찾을 수 없습니다.", "error");
+    showToast("\uC601\uC0C1 ID\uB97C \uCC3E\uC744 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.", "error");
     throw new Error("YouTube videoId not found");
   }
 
   const timestampSec = getCurrentTimestampSec();
 
   if (timestampSec === null || timestampSec === undefined) {
-    showToast("영상 정보를 찾을 수 없습니다.", "error");
+    showToast("\uC601\uC0C1 \uC815\uBCF4\uB97C \uCC3E\uC744 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.", "error");
     throw new Error("Video timestamp not found");
   }
 
   const { backendBaseUrl, accessToken } = await getExtensionSettings();
 
   if (!backendBaseUrl) {
-    showToast("백엔드 주소가 없습니다. 익스텐션 설정에서 백엔드 주소를 입력해주세요.", "warning");
+    showToast("\uBC31\uC5D4\uB4DC \uC8FC\uC18C\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4. \uC775\uC2A4\uD150\uC158 \uC124\uC815\uC5D0\uC11C \uBC31\uC5D4\uB4DC \uC8FC\uC18C\uB97C \uC785\uB825\uD574\uC8FC\uC138\uC694.", "warning");
     throw new Error("backendBaseUrl is missing");
   }
 
   if (!accessToken) {
-    showToast("로그인이 필요합니다.", "warning");
+    showToast("\uB85C\uADF8\uC778\uC774 \uD544\uC694\uD569\uB2C8\uB2E4.", "warning");
     showLoginPanel();
     throw new Error("accessToken is missing");
   }
@@ -1340,7 +1468,8 @@ async function sendDetectionAnalyzeRequest(croppedDataUrl) {
     videoId,
     timestampSec,
     imageBase64: croppedDataUrl,
-    subtitleText: null
+    subtitleText: null,
+    searchMode
   };
   const requestUrl = `${backendBaseUrl.replace(/\/$/, "")}/api/detections/analyze`;
 
@@ -1348,7 +1477,8 @@ async function sendDetectionAnalyzeRequest(croppedDataUrl) {
     requestUrl,
     videoId,
     timestampSec,
-    imageSize: croppedDataUrl.length
+    imageSize: croppedDataUrl.length,
+    searchMode
   });
 
   startAnalysisProgressSequence();
@@ -1360,31 +1490,31 @@ async function sendDetectionAnalyzeRequest(croppedDataUrl) {
   });
 
   if (!response.success && response.errorCode === "NETWORK_ERROR") {
-    showToast("백엔드 서버에 연결할 수 없습니다.", "error");
+    showToast("\uBC31\uC5D4\uB4DC \uC11C\uBC84\uC5D0 \uC5F0\uACB0\uD560 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.", "error");
     throw new Error(response.errorMessage || "Network error");
   }
 
   if (response.status === 401) {
     await chrome.storage.local.remove(["accessToken", "authUser"]);
     showLoginPanel();
-    showToast("로그인이 만료되었습니다. 다시 로그인해주세요.", "error");
+    showToast("\uB85C\uADF8\uC778\uC774 \uB9CC\uB8CC\uB418\uC5C8\uC2B5\uB2C8\uB2E4. \uB2E4\uC2DC \uB85C\uADF8\uC778\uD574\uC8FC\uC138\uC694.", "error");
     throw new Error("Unauthorized");
   }
 
   if (response.status >= 500) {
-    showToast("서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.", "error");
+    showToast("\uC11C\uBC84 \uC624\uB958\uAC00 \uBC1C\uC0DD\uD588\uC2B5\uB2C8\uB2E4. \uC7A0\uC2DC \uD6C4 \uB2E4\uC2DC \uC2DC\uB3C4\uD574\uC8FC\uC138\uC694.", "error");
     throw new Error(`Server error: ${response.status}`);
   }
 
   if (!response.success) {
-    showToast("분석 실패. 다시 시도해주세요.", "error");
+    showToast("\uBD84\uC11D \uC2E4\uD328. \uB2E4\uC2DC \uC2DC\uB3C4\uD574\uC8FC\uC138\uC694.", "error");
     throw new Error(response.errorMessage || `Request failed: ${response.status}`);
   }
 
   const result = response.result;
 
   console.log("[SyncShopper] detection analyze response", result);
-  showToast("상품 분석 완료", "success");
+  showToast("\uC0C1\uD488 \uBD84\uC11D \uC644\uB8CC", "success");
 
   return result;
 }
@@ -1393,12 +1523,12 @@ async function requestCommerceTop3Products(query) {
   const { backendBaseUrl, accessToken } = await getExtensionSettings();
 
   if (!backendBaseUrl) {
-    throw new Error("백엔드 주소가 없습니다.");
+    throw new Error("\uBC31\uC5D4\uB4DC \uC8FC\uC18C\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4.");
   }
 
   if (!accessToken) {
     showLoginPanel();
-    throw new Error("로그인이 필요합니다.");
+    throw new Error("\uB85C\uADF8\uC778\uC774 \uD544\uC694\uD569\uB2C8\uB2E4.");
   }
 
   const requestUrl = `${backendBaseUrl.replace(/\/$/, "")}/api/commerce/top3?query=${encodeURIComponent(query)}`;
@@ -1408,13 +1538,13 @@ async function requestCommerceTop3Products(query) {
   });
 
   if (!response.success && response.errorCode === "NETWORK_ERROR") {
-    throw new Error(response.errorMessage || "백엔드 서버에 연결할 수 없습니다.");
+    throw new Error(response.errorMessage || "\uBC31\uC5D4\uB4DC \uC11C\uBC84\uC5D0 \uC5F0\uACB0\uD560 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.");
   }
 
   if (response.status === 401) {
     await chrome.storage.local.remove(["accessToken", "authUser"]);
     showLoginPanel();
-    throw new Error("로그인이 만료되었습니다.");
+    throw new Error("\uB85C\uADF8\uC778\uC774 \uB9CC\uB8CC\uB418\uC5C8\uC2B5\uB2C8\uB2E4.");
   }
 
   if (!response.success) {

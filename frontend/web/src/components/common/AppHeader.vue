@@ -64,6 +64,10 @@ const alertPreparing = () => {
 
 void alertPreparing
 
+const showExtensionAlert = () => {
+  alert('곧 배포 예정입니다')
+}
+
 const goToMyPage = () => {
   isDropdownOpen.value = false
   router.push('/mypage/profile')
@@ -87,7 +91,9 @@ const goToAdminPage = () => {
           <span @click="emit('open-search')" id="search-btn">
             <i class="fa-solid fa-magnifying-glass"></i> 검색
           </span>
-          <span><i class="fa-solid fa-cart-shopping"></i> 장바구니 (0)</span>
+          <RouterLink to="/mypage/history" class="cart-link">
+            <i class="fa-solid fa-cart-shopping"></i> 위시리스트
+          </RouterLink>
           
           <template v-if="authStore.isLoggedIn">
             <div class="profile-container" @click="isDropdownOpen = !isDropdownOpen">
@@ -119,9 +125,9 @@ const goToAdminPage = () => {
           <RouterLink to="/best">베스트 상품리스트</RouterLink>
           <RouterLink to="/ai-recommend">AI 추천 상품리스트</RouterLink>
           <RouterLink to="/category">전체 카테고리</RouterLink>
-          <a href="#">크롬 익스텐션 설치</a>
           <RouterLink to="/board">공지사항/FAQ</RouterLink>
-          <a href="#">이벤트</a>
+          <a href="#" @click.prevent="showExtensionAlert">크롬 익스텐션 설치</a>
+          <a href="#" v-if="false">이벤트</a>
         </nav>
       </div>
     </div>
@@ -174,22 +180,27 @@ header.absolute-header {
   flex: 1;
   display: flex;
   justify-content: flex-end;
+  align-items: center;
   gap: 25px;
   font-size: 14px;
   font-weight: 500;
 }
 
 .header-utils span,
-.header-utils .login-link {
+.header-utils .login-link,
+.header-utils .cart-link {
   cursor: pointer;
   display: flex;
   align-items: center;
   gap: 6px;
   transition: color 0.3s;
+  text-decoration: none;
+  color: inherit;
 }
 
 .header-utils span:hover,
-.header-utils .login-link:hover {
+.header-utils .login-link:hover,
+.header-utils .cart-link:hover {
   color: var(--accent-color);
 }
 
@@ -204,6 +215,12 @@ header.absolute-header {
   font-size: 13px;
   font-weight: 500;
   position: relative;
+  transition: color 0.3s;
+}
+
+.gnb a:hover,
+.gnb a.router-link-active {
+  color: var(--accent-color);
 }
 
 .gnb a::after {

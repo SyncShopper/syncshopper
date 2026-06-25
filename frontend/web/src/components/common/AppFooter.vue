@@ -1,4 +1,5 @@
 <script setup>
+import logoImage from '@/assets/logo.png'
 </script>
 
 <template>
@@ -6,8 +7,10 @@
     <div class="container">
       <div class="footer-grid">
         <div class="footer-col">
-          <div class="footer-logo">로고</div>
-          <p class="footer-desc">홈페이지에 대한 설명이 적혀있습니다. 당사는 모던하고 감각적인 디자인의 프리미엄 상품을 제공합니다.</p>
+          <div class="footer-logo">
+            <img :src="logoImage" alt="CapShop Logo" class="footer-logo-img" />
+          </div>
+          <p class="footer-desc">CapShop은 스크린샷 한 장으로 원하는 상품을 똑같이 찾아주고, AI 기반 개인 맞춤형 추천을 통해 가장 스마트하고 편리한 쇼핑 경험을 제공하는 혁신적인 플랫폼입니다.</p>
           <div class="footer-checks">
             <label><input type="checkbox" checked disabled> 주소: 서울특별시 강남구</label>
             <label><input type="checkbox" checked disabled> 이메일: contact@domain.com</label>
@@ -35,7 +38,7 @@
       </div>
 
       <div class="footer-bottom">
-        <p>카피라이터 Copyright © 2026 로고 All rights reserved.</p>
+        <p>Copyright © 2026 CapShop All rights reserved.</p>
         <div class="socials">
           <a href="#"><i class="fa-brands fa-facebook-f"></i></a>
           <a href="#"><i class="fa-brands fa-twitter"></i></a>
@@ -63,10 +66,13 @@ footer {
 }
 
 .footer-logo {
-  font-size: 32px;
-  font-weight: 700;
   margin-bottom: 20px;
-  color: #ffffff;
+}
+
+.footer-logo-img {
+  max-height: 35px;
+  object-fit: contain;
+  filter: brightness(0) invert(1); /* 푸터 배경이 어두우므로 로고를 흰색으로 반전 */
 }
 
 .footer-desc {

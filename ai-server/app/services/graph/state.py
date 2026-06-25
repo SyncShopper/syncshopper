@@ -28,9 +28,13 @@ class ShoppingAnalysisState(TypedDict, total=False):
     google_source_counts: dict[str, int]
     search_identification: SearchIdentificationResult
     search_candidates: list[ProductCandidate]
+    naver_search_candidates: list[ProductCandidate]
+    naver_source_counts: dict[str, int]
+    google_search_candidates: list[ProductCandidate]
     filtered_candidates: list[ProductCandidate]
     reranked_candidates: list[ProductCandidate]
     best_candidates: list[ProductCandidate]
     quality: ResultQuality
     retry_count: int
     response: ShoppingAnalysisResponse
+    search_mode: str

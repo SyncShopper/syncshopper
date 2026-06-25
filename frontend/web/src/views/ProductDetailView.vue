@@ -36,7 +36,7 @@ const fetchProductDetail = async (id) => {
       const parsed = JSON.parse(stateData)
       product.value = {
         id: parsed.externalProductId || parsed.productId || id,
-        title: parsed.title || '상품명 없음',
+        title: parsed.title ? parsed.title.replace(/<\/?b>/gi, '') : '상품명 없음',
         price: parsed.price || parsed.lprice || 0,
         summary: parsed.mallName || parsed.brand ? `${parsed.mallName || parsed.brand}에서 판매 중인 상품입니다.` : '해당 쇼핑몰에서 상품 상세 정보를 확인해보세요.',
         mainImage: parsed.imageUrl || parsed.image || 'https://via.placeholder.com/600',

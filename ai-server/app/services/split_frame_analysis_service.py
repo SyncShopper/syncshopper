@@ -13,7 +13,7 @@ from app.schemas.analysis_graph_schema import (
     VisualFeatureAnalysisResult,
 )
 from app.schemas.detection_schema import AnalyzeFrameRequest, AnalyzeFrameResponse
-from app.services.gms_openai_client import call_chat_completion, extract_json_object
+from app.services.gemini_client import call_chat_completion, extract_json_object
 from app.services.prompts.judge_prompt import SEARCH_IDENTIFICATION_PROMPT
 from app.services.prompts.ocr_prompt import OCR_SYSTEM_PROMPT, build_ocr_user_prompt
 from app.services.prompts.visual_prompt import VISUAL_SYSTEM_PROMPT, build_visual_user_prompt
@@ -23,7 +23,7 @@ def analyze_ocr(request: AnalyzeFrameRequest) -> OcrAnalysisResult:
     provider = settings.ai_detection_provider.lower()
     if provider == "mock":
         return _mock_ocr(request)
-    if provider != "gpt":
+    if provider != "gemini":
         raise HTTPException(status_code=500, detail=f"Unsupported AI_DETECTION_PROVIDER: {settings.ai_detection_provider}")
 
     parsed = _call_image_json(
@@ -41,7 +41,7 @@ def analyze_visual_features(request: AnalyzeFrameRequest) -> VisualFeatureAnalys
     provider = settings.ai_detection_provider.lower()
     if provider == "mock":
         return _mock_visual(request)
-    if provider != "gpt":
+    if provider != "gemini":
         raise HTTPException(status_code=500, detail=f"Unsupported AI_DETECTION_PROVIDER: {settings.ai_detection_provider}")
 
     parsed = _call_image_json(
@@ -53,6 +53,30 @@ def analyze_visual_features(request: AnalyzeFrameRequest) -> VisualFeatureAnalys
     result = _normalize_visual(parsed)
     _print_split_debug("VISUAL", parsed, result)
     return result
+
+
+def koreanize_visual_analysis(visual: VisualFeatureAnalysisResult) -> VisualFeatureAnalysisResult:
+    haystack = _join(
+        visual.product_type,
+        visual.category_name,
+        visual.color,
+        visual.shape,
+        visual.material,
+        visual.style,
+        " ".join(visual.key_features or []),
+    ).lower()
+    updates = {
+        "product_type": _korean_product_type(haystack, visual.product_type),
+        "category_name": _korean_category_name(haystack, visual.category_name),
+        "color": _korean_color(haystack, visual.color),
+        "shape": _korean_shape(haystack, visual.shape),
+        "material": _korean_material(haystack, visual.material),
+        "style": _korean_style(haystack, visual.style),
+        "key_features": _korean_key_features(visual.key_features or [], haystack),
+    }
+    if hasattr(visual, "model_copy"):
+        return visual.model_copy(update=updates)
+    return visual.copy(update=updates)
 
 
 def synthesize_initial_detection(
@@ -77,7 +101,7 @@ def synthesize_initial_detection(
 
     return AnalyzeFrameResponse(
         target_name=target_name,
-        category_name=visual.category_name or visual.product_type or "기타",
+        category_name=visual.category_name or visual.product_type or "\uAE30\uD0C0",
         brand=brand,
         model_name=model_name,
         color=visual.color,
@@ -88,6 +112,110 @@ def synthesize_initial_detection(
     )
 
 
+def _korean_product_type(haystack: str, fallback: str | None) -> str | None:
+    if _contains_any_text(haystack, ["button-up", "button up", "button-front", "collared", "long sleeve", "long-sleeve"]):
+        return "\uAE34\uD314 \uC154\uCE20" if _contains_any_text(haystack, ["long sleeve", "long-sleeve"]) else "\uC154\uCE20"
+    if _contains_any_text(haystack, ["t-shirt", "tee", "crew neck", "crewneck"]):
+        return "\uD2F0\uC154\uCE20"
+    if _contains_any_text(haystack, ["shirt"]):
+        return "\uC154\uCE20"
+    if _contains_any_text(haystack, ["jacket", "outerwear", "jumper"]):
+        return "\uC7AC\uD0B7"
+    if _contains_any_text(haystack, ["coat"]):
+        return "\uCF54\uD2B8"
+    if _contains_any_text(haystack, ["sneaker", "shoe"]):
+        return "\uC6B4\uB3D9\uD654"
+    return fallback
+
+
+def _korean_category_name(haystack: str, fallback: str | None) -> str | None:
+    if _contains_any_text(haystack, ["apparel", "shirt", "clothing", "fashion"]):
+        return "\uB0A8\uC131 \uC758\uB958" if _contains_any_text(haystack, ["men", "men\'s", "male"]) else "\uC758\uB958"
+    if _contains_any_text(haystack, ["shoe", "sneaker"]):
+        return "\uC2E0\uBC1C"
+    if _contains_any_text(haystack, ["electronics", "device"]):
+        return "\uC804\uC790\uAE30\uAE30"
+    return fallback
+
+
+def _korean_color(haystack: str, fallback: str | None) -> str | None:
+    color_map = [
+        (["tan", "beige"], "\uBCA0\uC774\uC9C0"),
+        (["khaki"], "\uCE74\uD0A4"),
+        (["olive green", "olive-green"], "\uC62C\uB9AC\uBE0C \uADF8\uB9B0"),
+        (["black"], "\uAC80\uC815\uC0C9"),
+        (["white"], "\uD770\uC0C9"),
+        (["blue"], "\uD30C\uB780\uC0C9"),
+        (["green"], "\uCD08\uB85D\uC0C9"),
+        (["red"], "\uBE68\uAC04\uC0C9"),
+        (["orange"], "\uC8FC\uD669\uC0C9"),
+        (["yellow"], "\uB178\uB780\uC0C9"),
+    ]
+    for terms, label in color_map:
+        if _contains_any_text(haystack, terms):
+            return label
+    return fallback
+
+
+def _korean_shape(haystack: str, fallback: str | None) -> str | None:
+    parts = []
+    if _contains_any_text(haystack, ["collared", "collar"]):
+        parts.append("\uCE74\uB77C")
+    if _contains_any_text(haystack, ["long sleeve", "long-sleeve"]):
+        parts.append("\uAE34\uD314")
+    if _contains_any_text(haystack, ["button-up", "button up", "button-front"]):
+        parts.append("\uBC84\uD2BC\uC5C5")
+    if parts:
+        return " ".join(parts)
+    return fallback
+
+
+def _korean_material(haystack: str, fallback: str | None) -> str | None:
+    if _contains_any_text(haystack, ["woven fabric", "fabric"]):
+        return "\uC9C1\uBB3C"
+    if _contains_any_text(haystack, ["cotton"]):
+        return "\uBA74"
+    if _contains_any_text(haystack, ["polyester"]):
+        return "\uD3F4\uB9AC\uC5D0\uC2A4\uD130"
+    return fallback
+
+
+def _korean_style(haystack: str, fallback: str | None) -> str | None:
+    parts = []
+    if _contains_any_text(haystack, ["casual"]):
+        parts.append("\uCE90\uC8FC\uC5BC")
+    if _contains_any_text(haystack, ["button-up", "button up", "button-front"]):
+        parts.append("\uBC84\uD2BC\uC5C5")
+    if _contains_any_text(haystack, ["relaxed fit", "loose fit"]):
+        parts.append("\uB8E8\uC988\uD54F")
+    if parts:
+        return " ".join(parts)
+    return fallback
+
+
+def _korean_key_features(features: list[str], haystack: str) -> list[str]:
+    labels = []
+    feature_text = " ".join(features).lower() + " " + haystack
+    candidates = [
+        (["collar", "collared"], "\uCE74\uB77C"),
+        (["button-front", "button front", "button-up", "button up"], "\uBC84\uD2BC \uC5EC\uBC08"),
+        (["long sleeve", "long-sleeve"], "\uAE34\uD314"),
+        (["buttoned cuffs", "cuffs"], "\uBC84\uD2BC \uC18C\uB9E4"),
+        (["patch pocket", "chest pocket"], "\uAC00\uC2B4 \uD3EC\uCF13"),
+        (["relaxed fit", "loose fit"], "\uB8E8\uC988\uD54F"),
+        (["woven fabric"], "\uC9C1\uBB3C \uC18C\uC7AC"),
+    ]
+    for terms, label in candidates:
+        if _contains_any_text(feature_text, terms):
+            labels.append(label)
+    return _unique(labels)[:6] or features
+
+
+def _contains_any_text(text: str, terms: list[str]) -> bool:
+    return any(term.lower() in text for term in terms if term)
+
+
+
 def identify_from_search(
     frame_analysis: AnalyzeFrameResponse,
     ocr: OcrAnalysisResult | None,
@@ -96,7 +224,7 @@ def identify_from_search(
     google_results: list[GoogleSearchResult],
 ) -> SearchIdentificationResult:
     provider = settings.ai_detection_provider.lower()
-    if provider != "gpt" or not settings.gms_openai_api_key:
+    if provider != "gemini" or not settings.gemini_api_key:
         return _fallback_identification(frame_analysis, ocr, visual, naver_candidates, google_results)
 
     payload = {
@@ -117,7 +245,7 @@ def identify_from_search(
                 ),
             },
         ],
-        model=settings.gms_openai_query_model,
+        model=settings.gemini_query_model,
         temperature=0.1,
     )
     parsed = extract_json_object(raw_content)
@@ -164,7 +292,7 @@ def _call_image_json(
                 ],
             },
         ],
-        model=settings.gms_openai_vision_model,
+        model=settings.gemini_vision_model,
         temperature=temperature,
     )
     return extract_json_object(raw_content)
@@ -201,7 +329,7 @@ def _normalize_identification(
 ) -> SearchIdentificationResult:
     return SearchIdentificationResult(
         target_name=str(data.get("target_name") or fallback.target_name or "Unknown product").strip(),
-        category_name=str(data.get("category_name") or fallback.category_name or "기타").strip(),
+        category_name=str(data.get("category_name") or fallback.category_name or "\uAE30\uD0C0").strip(),
         brand=_clean_optional(data.get("brand")),
         model_name=_clean_optional(data.get("model_name")),
         color=_clean_optional(data.get("color")) or fallback.color,
@@ -266,7 +394,7 @@ def _mock_visual(request: AnalyzeFrameRequest) -> VisualFeatureAnalysisResult:
     if "jersey" in text or "orange" in text:
         return VisualFeatureAnalysisResult(
             product_type="sports jersey t-shirt",
-            category_name="패션 의류",
+            category_name="\uD328\uC158 \uC758\uB958",
             color="orange",
             shape="short-sleeve crewneck top",
             material="polyester-like jersey fabric",
@@ -277,7 +405,7 @@ def _mock_visual(request: AnalyzeFrameRequest) -> VisualFeatureAnalysisResult:
         )
     return VisualFeatureAnalysisResult(
         product_type="Unknown product",
-        category_name="기타",
+        category_name="\uAE30\uD0C0",
         color=None,
         shape=None,
         material=None,

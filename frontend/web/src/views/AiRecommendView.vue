@@ -1,10 +1,12 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import AppBanner from '@/components/common/AppBanner.vue'
 import { recommendationApi } from '@/api/recommendation'
+import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
+const authStore = useAuthStore()
 const recommendations = ref([])
 const isLoading = ref(true)
 const error = ref(null)
@@ -18,10 +20,15 @@ const aiReasons = [
 ]
 
 const fetchRecommendations = async () => {
+  if (!authStore.isLoggedIn) {
+    isLoading.value = false
+    return
+  }
+
   isLoading.value = true
   error.value = null
   try {
-    const result = await recommendationApi.getMyRecommendations(10)
+    const result = await recommendationApi.getMyRecommendations(15)
     
     recommendations.value = result.map((item, index) => ({
       productId: item.productId || item.externalProductId || `temp_${index}`,
@@ -34,9 +41,14 @@ const fetchRecommendations = async () => {
       link: item.link || item.affiliateUrl || '',
       affiliateUrl: item.link || item.affiliateUrl || '',
       categoryName: item.categoryName,
+      keyword: item.keyword,
       source: 'NAVER',
       reason: item.reason || aiReasons[index % aiReasons.length]
     }))
+    
+    if (Object.keys(groupedRecommendations.value).length > 0) {
+      activeKeyword.value = Object.keys(groupedRecommendations.value)[0]
+    }
   } catch (err) {
     console.error('Recommendation fetch failed:', err)
     error.value = '추천 상품을 불러오는 데 실패했습니다.'
@@ -44,6 +56,18 @@ const fetchRecommendations = async () => {
     isLoading.value = false
   }
 }
+
+const groupedRecommendations = computed(() => {
+  const groups = {}
+  recommendations.value.forEach(p => {
+    const k = p.keyword || '맞춤 추천'
+    if (!groups[k]) groups[k] = []
+    groups[k].push(p)
+  })
+  return groups
+})
+
+const activeKeyword = ref(null)
 
 const formatPrice = (price) => {
   if (!price) return '가격 정보 없음'
@@ -82,10 +106,28 @@ onMounted(() => {
           사용자의 관심 카테고리 및 유튜브 시청 기록을 기반으로 분석된 개인 맞춤형 상품 추천 서비스입니다.<br/>
           지금 가장 필요하실 만한 특별한 상품들을 만나보세요.
         </p>
+
+        <!-- 키워드(카테고리) 탭 UI -->
+        <div class="keyword-tabs" v-if="Object.keys(groupedRecommendations).length > 0">
+          <button 
+            v-for="(keyword, index) in Object.keys(groupedRecommendations)" 
+            :key="keyword"
+            class="tab-btn"
+            :class="{ active: activeKeyword === keyword }"
+            @click="activeKeyword = keyword"
+          >
+            <span class="rank-badge">{{ index + 1 }}위</span> {{ keyword }}
+          </button>
+        </div>
       </section>
 
       <section class="recommend-list-section">
-        <div v-if="isLoading" class="loading-state">
+        <div v-if="!authStore.isLoggedIn" class="login-required-state">
+          <p>해당 기능은 로그인 한 회원만 가능합니다.</p>
+          <button @click="router.push('/login')" class="login-btn">로그인하러 가기</button>
+        </div>
+
+        <div v-else-if="isLoading" class="loading-state">
           <div class="spinner"></div>
           <p>AI가 맞춤형 상품을 분석하고 있습니다...</p>
         </div>
@@ -94,33 +136,41 @@ onMounted(() => {
           {{ error }}
         </div>
 
-        <div v-else class="recommend-list">
+        <div v-else class="recommend-groups">
           <div v-if="recommendations.length === 0" class="empty-state">추천해 드릴 상품이 없습니다.</div>
           
-          <div 
-            v-for="product in recommendations" 
-            :key="product.productId" 
-            class="product-item" 
-            @click="goToDetail(product)"
-          >
-            <!-- 왼쪽 세로로 긴 이미지 영역 -->
-            <div class="image-section">
-              <img :src="product.imageUrl" :alt="product.title" loading="lazy" />
-            </div>
-
-            <!-- 오른쪽 정보 영역 -->
-            <div class="info-section">
-              <div class="product-basic-info">
-                <div class="brand">{{ product.brand }}</div>
-                <h4 class="title" v-html="product.title"></h4>
-                <div class="price">{{ formatPrice(product.price) }}</div>
-              </div>
-
-              <div class="ai-reason-block">
-                <div class="reason-title">
-                  <i class="fa-solid fa-sparkles reason-icon"></i> AI 추천 이유
+          <div v-if="activeKeyword && groupedRecommendations[activeKeyword]" class="keyword-group">
+            <h3 class="keyword-title">
+              <i class="fa-solid fa-tag"></i> '{{ activeKeyword }}' 관련 맞춤 추천 상품
+            </h3>
+            
+            <div class="recommend-list">
+              <div 
+                v-for="product in groupedRecommendations[activeKeyword]" 
+                :key="product.productId" 
+                class="product-item" 
+                @click="goToDetail(product)"
+              >
+                <!-- 왼쪽 세로로 긴 이미지 영역 -->
+                <div class="image-section">
+                  <img :src="product.imageUrl" :alt="product.title" loading="lazy" />
                 </div>
-                <p class="reason-text">{{ product.reason }}</p>
+
+                <!-- 오른쪽 정보 영역 -->
+                <div class="info-section">
+                  <div class="product-basic-info">
+                    <div class="brand">{{ product.brand }}</div>
+                    <h4 class="title" v-html="product.title"></h4>
+                    <div class="price">{{ formatPrice(product.price) }}</div>
+                  </div>
+
+                  <div class="ai-reason-block">
+                    <div class="reason-title">
+                      <i class="fa-solid fa-sparkles reason-icon"></i> AI 추천 이유
+                    </div>
+                    <p class="reason-text">{{ product.reason }}</p>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -160,15 +210,92 @@ onMounted(() => {
   font-size: 15px;
   color: #666;
   line-height: 1.6;
-  margin: 0;
+  margin: 0 0 30px 0;
 }
 
-/* Recommend List (표/선 제거, 배치 중심) */
+/* Keyword Tabs */
+.keyword-tabs {
+  display: flex;
+  justify-content: center;
+  gap: 15px;
+  margin-top: 20px;
+  flex-wrap: wrap;
+}
+
+.tab-btn {
+  padding: 10px 25px;
+  border-radius: 30px;
+  border: 1px solid #ddd;
+  background-color: #fff;
+  color: #555;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rank-badge {
+  background-color: #ff3f3f;
+  color: white;
+  font-size: 12px;
+  font-weight: bold;
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+.tab-btn.active .rank-badge {
+  background-color: #fff;
+  color: #333;
+}
+
+.tab-btn:hover {
+  background-color: #f1f1f1;
+}
+
+.tab-btn.active {
+  background-color: #333;
+  color: #fff;
+  border-color: #333;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+}
+
+/* Recommend List */
+.recommend-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 60px;
+  margin-top: 40px;
+}
+
+.keyword-group {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.keyword-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: #222;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #eaeaea;
+}
+
+.keyword-title i {
+  color: #ff3f3f;
+}
+
 .recommend-list {
   display: flex;
   flex-direction: column;
-  gap: 80px; /* 상품 간격 넓게 확보 */
-  margin-top: 40px;
+  gap: 40px; 
 }
 
 .product-item {
@@ -262,6 +389,42 @@ onMounted(() => {
   color: #555;
   margin: 0;
   word-break: keep-all;
+}
+
+.login-required-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 0;
+  background-color: #f8f9fa;
+  border-radius: 12px;
+  text-align: center;
+  margin-top: 20px;
+}
+
+.login-required-state p {
+  font-size: 16px;
+  color: #333;
+  margin-bottom: 20px;
+  font-weight: 500;
+}
+
+.login-btn {
+  padding: 12px 30px;
+  background-color: #000;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.login-btn:hover {
+  opacity: 0.9;
+  transform: translateY(-2px);
 }
 
 /* Loading & Error */

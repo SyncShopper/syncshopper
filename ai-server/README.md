@@ -27,26 +27,35 @@ uvicorn app.main:app --reload --port 8000
 Write the required environment variables directly in `.env`.
 
 ```env
-AI_DETECTION_PROVIDER=gpt
-AI_COMMERCE_QUERY_PROVIDER=gpt
-AI_VISUAL_RERANKER_PROVIDER=gpt
-AI_RESULT_JUDGE_PROVIDER=gpt
-GMS_OPENAI_API_KEY=YOUR_API_KEY
-GMS_OPENAI_CHAT_COMPLETIONS_URL=https://gms.ssafy.io/gmsapi/api.openai.com/v1/chat/completions
-GMS_OPENAI_MODEL=gpt-5.4-mini
-GMS_OPENAI_VISION_MODEL=YOUR_GMS_VISION_MODEL
-GMS_OPENAI_QUERY_MODEL=gpt-5.4-mini
-GMS_OPENAI_TIMEOUT_SEC=30
+AI_DETECTION_PROVIDER=gemini
+AI_COMMERCE_QUERY_PROVIDER=gemini
+AI_VISUAL_RERANKER_PROVIDER=gemini
+AI_RESULT_JUDGE_PROVIDER=gemini
+GEMINI_API_KEY=YOUR_GEMINI_API_KEY
+GEMINI_GENERATE_CONTENT_URL_TEMPLATE=https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent
+GEMINI_MODEL=gemini-2.5-flash
+GEMINI_VISION_MODEL=gemini-2.5-flash
+GEMINI_QUERY_MODEL=gemini-2.5-flash
+GEMINI_TIMEOUT_SEC=30
+HTTP_TIMEOUT_SEC=30
 BACKEND_BASE_URL=http://localhost:8080
 BACKEND_COMMERCE_SEARCH_PATH=/api/commerce/search
 NAVER_SHOPPING_PROVIDER=backend
 NAVER_SHOPPING_DISPLAY=30
 NAVER_SHOPPING_SORT=sim
-GEMINI_API_KEY=YOUR_GEMINI_API_KEY
-GEMINI_SEARCH_MODEL=gemini-3.5-flash
+AI_NAVER_SEARCH_MAX_WORKERS=5
+AI_SEARCH_NAVER_RATIO=0.6
+AI_SKIP_VISUAL_RERANK_TOP_SCORE=0.75
+AI_SKIP_VISUAL_RERANK_AVG_SCORE=0.72
+AI_SEARCH_CACHE_TTL_SECONDS=3600
+AI_SEARCH_CACHE_MAX_SIZE=500
+GEMINI_SEARCH_MODEL=gemini-2.5-flash
+GEMINI_SEARCH_MAX_QUERIES=2
+GEMINI_SEARCH_MAX_WORKERS=2
 GEMINI_SEARCH_ENDPOINT=https://generativelanguage.googleapis.com/v1beta/interactions
-GEMINI_SEARCH_TIMEOUT_SECONDS=20
-AI_ANALYSIS_MAX_RETRIES=1
+GEMINI_SEARCH_TIMEOUT_SECONDS=8
+GEMINI_SEARCH_PER_QUERY_TIMEOUT_SECONDS=8
+AI_ANALYSIS_MAX_RETRIES=0
 ```
 
 Deprecated Custom Search fallback variables:
@@ -72,17 +81,50 @@ same `ProductCandidate` list as Naver before filtering and reranking.
 
 `POST /api/ai/analyze-frame` is the integrated LangGraph API:
 
+The request accepts `search_mode`:
+
+- `precise` (default): preserves the existing flow with visual reranking and candidate judging.
+- `fast`: targets a 10-15 second response by skipping visual reranking and candidate judging. It uses a local conservative quality judge based on candidate text score, source, category consistency, and image availability. Ambiguous matches are returned as `SIMILAR_ONLY`.
+
+Precise flow:
+
 ```text
 frame_analyzer
 -> query_generator
--> naver_search
+-> [naver_search || google_search]
+-> merge_search_results
 -> text_filter
 -> visual_reranker
--> result_judge
+-> candidate_judge
 -> final_formatter
 ```
 
-When `result_judge` decides the candidates are weak and retries remain, the graph runs `retry_query_generator` and then enters `naver_search` again. `naver_search` calls the Spring Boot backend commerce API by default, so Naver API credentials stay in the backend service.
+Fast flow:
+
+```text
+frame_analyzer
+-> query_generator
+-> [naver_search || google_search]
+-> merge_search_results
+-> text_filter
+-> fast_result_judge
+-> final_formatter
+```
+
+The graph always runs a single search pass. `candidate_judge` resolves search-based product identity and evaluates candidate quality for the final response, without routing back into another Naver/Google search cycle. `naver_search` calls the Spring Boot backend commerce API by default, so Naver API credentials stay in the backend service.
+
+Performance notes:
+
+- OCR and visual feature analysis run in parallel in the `frame_analyzer` node.
+- Naver multi-source searches run concurrently with `AI_NAVER_SEARCH_MAX_WORKERS`.
+- Naver and Gemini Grounding search branches run in parallel after query generation, then `merge_search_results` de-duplicates candidates before filtering.
+- Naver and Gemini Grounding split the candidate budget with `AI_SEARCH_NAVER_RATIO` (default Naver 60%, Gemini 40%).
+- Gemini Grounding runs at most `GEMINI_SEARCH_MAX_QUERIES` queries in parallel and uses `GEMINI_SEARCH_PER_QUERY_TIMEOUT_SECONDS` / `GEMINI_SEARCH_TIMEOUT_SECONDS` for request timeout. Fast search still limits query and worker count, but no longer applies an extra 8-second fast-mode timeout cap.
+- Gemini visual reranking is skipped when text scores are strong enough.
+- Naver and Gemini search results use in-memory TTL cache.
+- Set `AI_SEARCH_CACHE_TTL_SECONDS=0` to disable the in-memory search cache.
+- Gemini JSON parsing is tolerant of extra text around JSON.
+- LangGraph node logs include `elapsed_ms` for basic performance debugging.
 
 `POST /api/ai/generate-commerce-query` remains available for compatibility and direct query-generation debugging.
 

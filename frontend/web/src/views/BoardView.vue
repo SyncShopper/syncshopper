@@ -13,7 +13,7 @@ const totalPages = ref(1)
 const tabs = [
   { id: 'notices', name: '공지사항' },
   { id: 'faqs', name: 'FAQ' },
-  { id: 'events', name: '이벤트' }
+  // { id: 'events', name: '이벤트' }
 ]
 
 const loadBoardData = async (page = 1) => {

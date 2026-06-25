@@ -3,14 +3,13 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 
 from app.schemas.analysis_graph_schema import ProductCandidate, ShoppingAnalysisRequest, ShoppingAnalysisResponse
-from app.schemas.detection_schema import AnalyzeFrameRequest
 
 
 router = APIRouter()
 
 
 @router.post("/analyze-frame")
-def analyze_frame_endpoint(request: AnalyzeFrameRequest):
+def analyze_frame_endpoint(request: ShoppingAnalysisRequest):
     try:
         from app.services.langgraph_analysis_service import analyze_shopping
     except ModuleNotFoundError as exc:
@@ -21,14 +20,13 @@ def analyze_frame_endpoint(request: AnalyzeFrameRequest):
             ) from exc
         raise
 
-    request_data = request.model_dump() if hasattr(request, "model_dump") else request.dict()
-    graph_request = ShoppingAnalysisRequest(**request_data)
-    return _to_integrated_response(analyze_shopping(graph_request))
+    return _to_integrated_response(analyze_shopping(request))
 
 
 def _to_integrated_response(graph_response: ShoppingAnalysisResponse) -> dict[str, Any]:
     frame_analysis = graph_response.frame_analysis
     frame_payload = frame_analysis.model_dump() if hasattr(frame_analysis, "model_dump") else frame_analysis.dict()
+    legacy_products = graph_response.selected_products or graph_response.similar_products
 
     return {
         **frame_payload,
@@ -42,7 +40,7 @@ def _to_integrated_response(graph_response: ShoppingAnalysisResponse) -> dict[st
         "commerce_query": _model_to_dict(graph_response.query),
         "products": [
             _to_commerce_product_payload(product)
-            for product in graph_response.selected_products
+            for product in legacy_products
         ],
         "selected_products": [
             _model_to_dict(product)
