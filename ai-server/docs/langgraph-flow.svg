@@ -1,0 +1,129 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1040" viewBox="0 0 1440 1040" role="img" aria-labelledby="title desc">
+  <title id="title">SyncShopper LangGraph Flow</title>
+  <desc id="desc">LangGraph shopping analysis flow with parallel Naver and Gemini search branches and fast versus precise routing.</desc>
+  <defs>
+    <style>
+      .bg { fill: #f6f8fb; }
+      .title { font: 700 34px Arial, sans-serif; fill: #172033; }
+      .subtitle { font: 400 16px Arial, sans-serif; fill: #53637a; }
+      .label { font: 700 17px Arial, sans-serif; fill: #172033; }
+      .body { font: 400 13px Arial, sans-serif; fill: #405066; }
+      .small { font: 700 13px Arial, sans-serif; fill: #405066; }
+      .pillText { font: 700 14px Arial, sans-serif; fill: #172033; }
+      .node { fill: #ffffff; stroke: #4f6f8f; stroke-width: 1.6; rx: 8; }
+      .entry { fill: #f4f7fb; stroke: #53637a; stroke-width: 1.6; rx: 8; }
+      .external { fill: #eef8f1; stroke: #3f7d55; stroke-width: 1.6; rx: 8; }
+      .decision { fill: #fff6db; stroke: #9a7a1f; stroke-width: 1.6; }
+      .finish { fill: #f7eef9; stroke: #82508f; stroke-width: 1.6; rx: 8; }
+      .arrow { stroke: #53637a; stroke-width: 2.2; fill: none; marker-end: url(#arrowHead); }
+      .dash { stroke: #7b8794; stroke-width: 2; stroke-dasharray: 6 6; fill: none; marker-end: url(#arrowHead); }
+      .lane { fill: #ffffff; stroke: #d9e1ea; stroke-width: 1.2; rx: 8; }
+      .legend { fill: #ffffff; stroke: #d9e1ea; stroke-width: 1.2; rx: 8; }
+    </style>
+    <marker id="arrowHead" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L8,3 z" fill="#53637a" />
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1440" height="1040" />
+  <text class="title" x="72" y="76">SyncShopper LangGraph Flow</text>
+  <text class="subtitle" x="72" y="105">Based on app/services/graph/graph_builder.py: one search pass, parallel retrieval, search_mode routing</text>
+
+  <rect class="lane" x="48" y="145" width="1344" height="252" />
+  <text class="small" x="72" y="176">1. Detection and query generation</text>
+  <rect class="lane" x="48" y="430" width="1344" height="212" />
+  <text class="small" x="72" y="461">2. Parallel retrieval and merge</text>
+  <rect class="lane" x="48" y="675" width="1344" height="270" />
+  <text class="small" x="72" y="706">3. Filter, judge, and format response</text>
+
+  <rect class="entry" x="92" y="220" width="180" height="86" />
+  <text class="label" x="182" y="249" text-anchor="middle">START</text>
+  <text class="body" x="182" y="273" text-anchor="middle">initial state</text>
+  <text class="body" x="182" y="291" text-anchor="middle">request, retry_count</text>
+
+  <rect class="node" x="338" y="205" width="245" height="116" />
+  <text class="label" x="460.5" y="235" text-anchor="middle">frame_analyzer</text>
+  <text class="body" x="460.5" y="260" text-anchor="middle">validate image_base64</text>
+  <text class="body" x="460.5" y="278" text-anchor="middle">fast: Gemini vision</text>
+  <text class="body" x="460.5" y="296" text-anchor="middle">precise: OCR + visual in parallel</text>
+
+  <rect class="node" x="650" y="205" width="245" height="116" />
+  <text class="label" x="772.5" y="235" text-anchor="middle">query_generator</text>
+  <text class="body" x="772.5" y="260" text-anchor="middle">build CommerceQueryResponse</text>
+  <text class="body" x="772.5" y="278" text-anchor="middle">active_queries</text>
+  <text class="body" x="772.5" y="296" text-anchor="middle">source_queries</text>
+
+  <rect class="external" x="506" y="505" width="245" height="96" />
+  <text class="label" x="628.5" y="535" text-anchor="middle">naver_search</text>
+  <text class="body" x="628.5" y="560" text-anchor="middle">Naver multi-source search</text>
+  <text class="body" x="628.5" y="578" text-anchor="middle">Spring Boot commerce API</text>
+
+  <rect class="external" x="814" y="505" width="245" height="96" />
+  <text class="label" x="936.5" y="535" text-anchor="middle">google_search</text>
+  <text class="body" x="936.5" y="560" text-anchor="middle">Gemini Grounded Search</text>
+  <text class="body" x="936.5" y="578" text-anchor="middle">Google search results</text>
+
+  <rect class="node" x="1128" y="505" width="245" height="96" />
+  <text class="label" x="1250.5" y="535" text-anchor="middle">merge_search_results</text>
+  <text class="body" x="1250.5" y="560" text-anchor="middle">merge Naver + Gemini candidates</text>
+  <text class="body" x="1250.5" y="578" text-anchor="middle">de-duplicate and cap at max_candidates</text>
+
+  <rect class="node" x="130" y="760" width="230" height="96" />
+  <text class="label" x="245" y="790" text-anchor="middle">text_filter</text>
+  <text class="body" x="245" y="815" text-anchor="middle">text/category relevance</text>
+  <text class="body" x="245" y="833" text-anchor="middle">drop low-score candidates</text>
+
+  <polygon class="decision" points="507,748 612,808 507,868 402,808" />
+  <text class="label" x="507" y="800" text-anchor="middle">search_mode?</text>
+  <text class="body" x="507" y="822" text-anchor="middle">fast | precise</text>
+
+  <rect class="node" x="690" y="704" width="245" height="100" />
+  <text class="label" x="812.5" y="733" text-anchor="middle">fast_result_judge</text>
+  <text class="body" x="812.5" y="758" text-anchor="middle">local conservative scoring</text>
+  <text class="body" x="812.5" y="776" text-anchor="middle">text/source/category/image</text>
+
+  <rect class="node" x="690" y="842" width="245" height="100" />
+  <text class="label" x="812.5" y="871" text-anchor="middle">visual_reranker</text>
+  <text class="body" x="812.5" y="896" text-anchor="middle">Gemini or fallback rerank</text>
+  <text class="body" x="812.5" y="914" text-anchor="middle">skip Gemini when text is strong</text>
+
+  <rect class="node" x="1010" y="842" width="245" height="100" />
+  <text class="label" x="1132.5" y="871" text-anchor="middle">candidate_judge</text>
+  <text class="body" x="1132.5" y="896" text-anchor="middle">local or Gemini quality judge</text>
+  <text class="body" x="1132.5" y="914" text-anchor="middle">search identification refinement</text>
+
+  <rect class="finish" x="1010" y="704" width="245" height="100" />
+  <text class="label" x="1132.5" y="733" text-anchor="middle">final_formatter</text>
+  <text class="body" x="1132.5" y="758" text-anchor="middle">ShoppingAnalysisResponse</text>
+  <text class="body" x="1132.5" y="776" text-anchor="middle">GOOD_MATCH / SIMILAR_ONLY / LOW_CONFIDENCE</text>
+
+  <rect class="finish" x="1296" y="721" width="72" height="66" />
+  <text class="label" x="1332" y="760" text-anchor="middle">END</text>
+
+  <path class="arrow" d="M272,263 L338,263" />
+  <path class="arrow" d="M583,263 L650,263" />
+  <path class="arrow" d="M772,321 C772,386 628,422 628,505" />
+  <path class="arrow" d="M813,321 C813,387 936,421 936,505" />
+  <path class="arrow" d="M751,553 L814,553" />
+  <path class="arrow" d="M1059,553 L1128,553" />
+  <path class="arrow" d="M1250,601 C1250,650 245,649 245,760" />
+  <path class="arrow" d="M360,808 L402,808" />
+  <path class="arrow" d="M612,808 C645,808 654,754 690,754" />
+  <path class="arrow" d="M612,808 C651,808 650,892 690,892" />
+  <path class="arrow" d="M935,754 L1010,754" />
+  <path class="arrow" d="M935,892 L1010,892" />
+  <path class="arrow" d="M1132,842 L1132,804" />
+  <path class="arrow" d="M1255,754 L1296,754" />
+
+  <rect class="legend" x="960" y="188" width="380" height="150" />
+  <text class="small" x="984" y="218">Legend</text>
+  <rect class="external" x="984" y="238" width="26" height="18" />
+  <text class="body" x="1022" y="252">External search/service call</text>
+  <rect class="node" x="984" y="270" width="26" height="18" />
+  <text class="body" x="1022" y="284">Internal processing node</text>
+  <polygon class="decision" points="997,302 1012,312 997,322 982,312" />
+  <text class="body" x="1022" y="316">Conditional route</text>
+
+  <text class="pillText" x="655" y="742" text-anchor="middle">fast</text>
+  <text class="pillText" x="652" y="877" text-anchor="middle">precise</text>
+</svg>

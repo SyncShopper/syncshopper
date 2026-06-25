@@ -1,0 +1,37 @@
+flowchart TD
+    start([START])
+    request[ShoppingAnalysisRequest<br/>search_mode: fast | precise]
+    frame[frame_analyzer<br/>Validate image_base64<br/>fast: Gemini vision<br/>precise: OCR + visual analysis in parallel]
+    query[query_generator<br/>Build CommerceQueryResponse<br/>active_queries + source_queries]
+    naver[naver_search<br/>Naver source searches<br/>candidate budget by AI_SEARCH_NAVER_RATIO]
+    google[google_search<br/>Gemini Grounded Search<br/>limited by GEMINI_SEARCH_MAX_QUERIES]
+    merge[merge_search_results<br/>Merge and de-duplicate candidates]
+    filter[text_filter<br/>Text/category relevance filtering]
+    route{search_mode?}
+    fast[fast_result_judge<br/>Local score from text, source,<br/>category consistency, image availability]
+    rerank[visual_reranker<br/>Gemini or fallback visual rerank<br/>may skip Gemini when text score is strong]
+    judge[candidate_judge<br/>Local or Gemini quality judge<br/>refine search identification]
+    final[final_formatter<br/>Build ShoppingAnalysisResponse<br/>GOOD_MATCH | SIMILAR_ONLY | LOW_CONFIDENCE]
+    end([END])
+
+    start --> request --> frame --> query
+    query --> naver
+    query --> google
+    naver --> merge
+    google --> merge
+    merge --> filter --> route
+    route -- fast --> fast --> final
+    route -- precise --> rerank --> judge --> final
+    final --> end
+
+    classDef entry fill:#f4f7fb,stroke:#53637a,color:#172033,stroke-width:1.2px;
+    classDef process fill:#ffffff,stroke:#4f6f8f,color:#172033,stroke-width:1.2px;
+    classDef external fill:#eef8f1,stroke:#3f7d55,color:#15281b,stroke-width:1.2px;
+    classDef decision fill:#fff6db,stroke:#9a7a1f,color:#2e2508,stroke-width:1.2px;
+    classDef finish fill:#f7eef9,stroke:#82508f,color:#2a1830,stroke-width:1.2px;
+
+    class start,request entry;
+    class frame,query,merge,filter,fast,rerank,judge process;
+    class naver,google external;
+    class route decision;
+    class final,end finish;
