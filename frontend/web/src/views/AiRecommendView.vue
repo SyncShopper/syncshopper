@@ -3,8 +3,10 @@ import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import AppBanner from '@/components/common/AppBanner.vue'
 import { recommendationApi } from '@/api/recommendation'
+import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
+const authStore = useAuthStore()
 const recommendations = ref([])
 const isLoading = ref(true)
 const error = ref(null)
@@ -18,6 +20,11 @@ const aiReasons = [
 ]
 
 const fetchRecommendations = async () => {
+  if (!authStore.isLoggedIn) {
+    isLoading.value = false
+    return
+  }
+
   isLoading.value = true
   error.value = null
   try {
@@ -115,7 +122,12 @@ onMounted(() => {
       </section>
 
       <section class="recommend-list-section">
-        <div v-if="isLoading" class="loading-state">
+        <div v-if="!authStore.isLoggedIn" class="login-required-state">
+          <p>해당 기능은 로그인 한 회원만 가능합니다.</p>
+          <button @click="router.push('/login')" class="login-btn">로그인하러 가기</button>
+        </div>
+
+        <div v-else-if="isLoading" class="loading-state">
           <div class="spinner"></div>
           <p>AI가 맞춤형 상품을 분석하고 있습니다...</p>
         </div>
@@ -377,6 +389,42 @@ onMounted(() => {
   color: #555;
   margin: 0;
   word-break: keep-all;
+}
+
+.login-required-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 0;
+  background-color: #f8f9fa;
+  border-radius: 12px;
+  text-align: center;
+  margin-top: 20px;
+}
+
+.login-required-state p {
+  font-size: 16px;
+  color: #333;
+  margin-bottom: 20px;
+  font-weight: 500;
+}
+
+.login-btn {
+  padding: 12px 30px;
+  background-color: #000;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.login-btn:hover {
+  opacity: 0.9;
+  transform: translateY(-2px);
 }
 
 /* Loading & Error */
