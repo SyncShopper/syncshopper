@@ -11,14 +11,6 @@ const recommendations = ref([])
 const isLoading = ref(true)
 const error = ref(null)
 
-// 임시 AI 추천 이유 데이터
-const aiReasons = [
-  "회원님의 최근 쇼핑/클릭 로그를 분석하여 취향과 가장 일치하는 제품을 찾아냈습니다.",
-  "설정하신 관심 카테고리와 연관성이 매우 높으며, 최근 가장 트렌디하게 떠오르는 인기 아이템입니다.",
-  "회원님의 활동 기록과 일치하며, 사용자 리뷰가 압도적으로 긍정적인 베스트 상품입니다.",
-  "위시리스트에 담으신 관심사들을 토대로 AI가 분석한 최적의 맞춤형 제품입니다."
-]
-
 const fetchRecommendations = async () => {
   if (!authStore.isLoggedIn) {
     isLoading.value = false
@@ -42,8 +34,7 @@ const fetchRecommendations = async () => {
       affiliateUrl: item.link || item.affiliateUrl || '',
       categoryName: item.categoryName,
       keyword: item.keyword,
-      source: 'NAVER',
-      reason: item.reason || aiReasons[index % aiReasons.length]
+      source: 'NAVER'
     }))
     
     if (Object.keys(groupedRecommendations.value).length > 0) {
@@ -162,13 +153,6 @@ onMounted(() => {
                     <div class="brand">{{ product.brand }}</div>
                     <h4 class="title" v-html="product.title"></h4>
                     <div class="price">{{ formatPrice(product.price) }}</div>
-                  </div>
-
-                  <div class="ai-reason-block">
-                    <div class="reason-title">
-                      <i class="fa-solid fa-sparkles reason-icon"></i> AI 추천 이유
-                    </div>
-                    <p class="reason-text">{{ product.reason }}</p>
                   </div>
                 </div>
               </div>
@@ -363,34 +347,6 @@ onMounted(() => {
   color: #222;
 }
 
-/* AI Reason Block */
-.ai-reason-block {
-  margin-top: 20px;
-}
-
-.reason-title {
-  font-size: 16px;
-  font-weight: 700;
-  color: #222;
-  margin-bottom: 12px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.reason-icon {
-  color: #ff3f3f; /* AI 강조 컬러 */
-  font-size: 14px;
-}
-
-.reason-text {
-  font-size: 15px;
-  line-height: 1.6;
-  color: #555;
-  margin: 0;
-  word-break: keep-all;
-}
-
 .login-required-state {
   display: flex;
   flex-direction: column;
@@ -467,10 +423,6 @@ onMounted(() => {
     padding-top: 0;
     text-align: center;
     align-items: center;
-  }
-  
-  .reason-title {
-    justify-content: center;
   }
 }
 </style>
