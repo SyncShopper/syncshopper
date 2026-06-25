@@ -88,7 +88,7 @@ const goToAdminPage = () => {
             <i class="fa-solid fa-magnifying-glass"></i> 검색
           </span>
           <RouterLink to="/mypage/history" class="cart-link">
-            <i class="fa-solid fa-cart-shopping"></i> 장바구니
+            <i class="fa-solid fa-cart-shopping"></i> 위시리스트
           </RouterLink>
           
           <template v-if="authStore.isLoggedIn">
