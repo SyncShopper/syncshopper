@@ -45,7 +45,7 @@ const handleClick = () => {
     </div>
     <div v-else class="img-placeholder">{{ imagePlaceholder }}</div>
     <div class="product-info">
-      <div class="product-name">{{ name }}</div>
+      <div class="product-name" v-html="name"></div>
       <div class="product-price">{{ formattedPrice }}</div>
     </div>
   </div>

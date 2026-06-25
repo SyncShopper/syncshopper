@@ -3,6 +3,9 @@ import HomeView from '../views/HomeView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
+  scrollBehavior() {
+    return { top: 0 }
+  },
   routes: [
     {
       path: '/',
@@ -108,15 +111,13 @@ const router = createRouter({
   ],
 })
 
-router.beforeEach((to, from, next) => {
+router.beforeEach((to, from) => {
   const isAuthenticated = !!localStorage.getItem('accessToken')
   
   const authRequiredRoutes = ['login', 'signup', 'findAccount']
   
   if (isAuthenticated && authRequiredRoutes.includes(to.name)) {
-    next('/')
-  } else {
-    next()
+    return '/'
   }
 })
 
